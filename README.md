@@ -36,6 +36,19 @@ Drag `Timesheet.app` to `/Applications`. Bundle settings are in `[package.metada
 The app is not signed. It opens normally on the Mac that built it. On another Mac, open it once with
 right-click › **Open**, or System Settings › Privacy & Security › **Open Anyway**.
 
+## CI and releases
+
+`.github/workflows/ci.yml` builds and tests on macOS and Windows for every push to `main` and every pull request.
+
+To publish a release, set `version` in `Cargo.toml`, commit, then push a matching tag:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The workflow then attaches `Timesheet-v0.1.0-macos-universal.dmg` (Apple silicon and Intel) and
+`Timesheet-v0.1.0-windows-x64.exe` to a new GitHub release. It fails if the tag does not match the `Cargo.toml` version.
+
 ## Data
 
 All data is saved automatically after each change, as JSON:
