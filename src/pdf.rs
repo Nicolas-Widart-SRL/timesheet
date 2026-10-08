@@ -256,6 +256,8 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
                 c.y += ROW_H;
             }
             for line in lines {
+                // Only breaks the page when a single day has more lines than a page holds.
+                c.ensure(ROW_H);
                 let base = c.y + 14.0;
                 c.swatch(x_type, base, kind_rgb(line.kind));
                 c.text(x_type + 10.5, base, Align::Left, Face::Regular, BODY, INK, line.kind.label());
