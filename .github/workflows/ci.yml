@@ -13,6 +13,26 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  commits:
+    name: Check Conventional Commits
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check commit subjects
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='^(feat|fix|perf|refactor|revert|docs|build|ci|chore|style|test)(\([a-z0-9-]+\))?!?: .+'
+          bad=$(git log --no-merges --format=%s "$RANGE" | grep -Ev "$pattern" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Commit subjects must follow Conventional Commits (https://www.conventionalcommits.org):"
+            echo "$bad"
+            exit 1
+          fi
+
   test:
     name: Build and test (${{ matrix.os }})
     strategy:
@@ -85,6 +105,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            /^\[[^]]+\]: / { next }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::No CHANGELOG.md section for $version"
+            exit 1
+          fi
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -92,4 +125,4 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: release-notes.md
