@@ -43,14 +43,36 @@ right-click › **Open**, or System Settings › Privacy & Security › **Open A
 
 `.github/workflows/ci.yml` builds and tests on macOS and Windows for every push to `main` and every pull request.
 
-To publish a release, set `version` in `Cargo.toml`, commit, then push a matching tag:
+### Commit messages
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org): `type(scope): description`,
+for example `feat(export): add CSV export` or `fix: keep focus after copying a day`. Pull requests fail CI
+if a commit subject does not match. Use `feat` and `fix` for user-facing changes: they become the
+**Added** and **Fixed** entries of the changelog. `perf`, `refactor`, `revert` and `docs` are listed too;
+`build`, `ci`, `chore`, `style` and `test` are left out. `feat!:` or a `BREAKING CHANGE:` footer marks a
+breaking change.
+
+### Releasing
+
+`CHANGELOG.md` is generated from the commits by [git-cliff](https://git-cliff.org) (`cliff.toml`).
+Install it once with `brew install git-cliff` or `cargo install git-cliff`, then:
 
 ```sh
-git tag v0.1.0 && git push origin v0.1.0
+scripts/release.sh
 ```
 
-The workflow then attaches `Timesheet-v0.1.0-macos-universal.dmg` (Apple silicon and Intel) and
-`Timesheet-v0.1.0-windows-x64.exe` to a new GitHub release. It fails if the tag does not match the `Cargo.toml` version.
+The script picks the next version from the commits since the last tag (`feat` bumps the minor version,
+`fix` the patch version), prepends its section to `CHANGELOG.md`, sets the version in `Cargo.toml` and
+`Cargo.lock`, and commits `chore(release): vX.Y.Z` on a `release/vX.Y.Z` branch. Edit the changelog
+section if needed, open a pull request, and after merging push the tag it prints:
+
+```sh
+git switch main && git pull && git tag -a v0.2.0 -m v0.2.0 && git push origin v0.2.0
+```
+
+The workflow then attaches `Timesheet-v0.2.0-macos-universal.dmg` (Apple silicon and Intel) and
+`Timesheet-v0.2.0-windows-x64.exe` to a new GitHub release, with that version's `CHANGELOG.md` section as
+release notes. It fails if the tag does not match the `Cargo.toml` version or the changelog has no section for it.
 
 ## Data
 
