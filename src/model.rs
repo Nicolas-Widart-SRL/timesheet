@@ -142,19 +142,24 @@ impl Data {
     }
 
     pub fn day_total(&self, date: NaiveDate) -> f64 {
-        self.lines(date).map(Entry::hours).sum()
+        round_hours(self.lines(date).map(Entry::hours).sum())
     }
 
     pub fn day_kind_total(&self, date: NaiveDate, kind: Kind) -> f64 {
-        self.lines(date).filter(|e| e.kind == kind).map(Entry::hours).sum()
+        round_hours(self.lines(date).filter(|e| e.kind == kind).map(Entry::hours).sum())
+    }
+
+    /// Total of several days, e.g. a week.
+    pub fn days_total(&self, days: &[NaiveDate]) -> f64 {
+        round_hours(days.iter().map(|&d| self.day_total(d)).sum())
     }
 
     pub fn kind_total(&self, month: Month, kind: Kind) -> f64 {
-        month.weekdays().iter().map(|&d| self.day_kind_total(d, kind)).sum()
+        round_hours(month.weekdays().iter().map(|&d| self.day_kind_total(d, kind)).sum())
     }
 
     pub fn month_total(&self, month: Month) -> f64 {
-        month.weekdays().iter().map(|&d| self.day_total(d)).sum()
+        self.days_total(&month.weekdays())
     }
 
     /// A month with a day over [`MAX_DAY_HOURS`] cannot be exported.
@@ -231,21 +236,26 @@ impl Data {
     }
 }
 
-/// Lenient hour parsing: accepts "7,5" and treats invalid or negative input as 0.
+/// Lenient hour parsing: accepts "7,5", treats invalid or negative input as 0 and rounds to hundredths.
 pub fn parse_hours(text: &str) -> f64 {
     let value = text.trim().replace(',', ".").parse::<f64>().unwrap_or(0.0);
-    if value.is_finite() { value.max(0.0) } else { 0.0 }
+    if value.is_finite() { round_hours(value.max(0.0)) } else { 0.0 }
+}
+
+/// Rounds to hundredths of an hour, so sums of typed decimals compare exactly (0.1 + 4.1 + 3.8 == 8.0).
+fn round_hours(n: f64) -> f64 {
+    // `+ 0.0` turns -0.0 (the sum of an empty iterator) into 0.0.
+    (n * 100.0).round() / 100.0 + 0.0
 }
 
 /// Compact hours for the UI: "8", "1.5", "0.25".
 pub fn fmt_hours(n: f64) -> String {
-    // `+ 0.0` turns -0.0 (the sum of an empty iterator) into 0.0.
-    format!("{}", (n * 100.0).round() / 100.0 + 0.0)
+    round_hours(n).to_string()
 }
 
 /// Fixed one-decimal hours for reports: "8.0", "1.5"; keeps a second decimal only when needed.
 pub fn fmt_report(n: f64) -> String {
-    let rounded = (n * 100.0).round() / 100.0 + 0.0;
+    let rounded = round_hours(n);
     if ((rounded * 10.0).round() - rounded * 10.0).abs() < 1e-9 {
         format!("{rounded:.1}")
     } else {
@@ -521,6 +531,18 @@ mod tests {
         assert_eq!(data.closed_months(oct), vec![]);
         let jan = Month { year: 2027, month: 1 };
         assert_eq!(data.closed_months(jan), vec![Month { year: 2026, month: 12 }, Month { year: 2026, month: 11 }, oct]);
+    }
+
+    #[test]
+    fn decimal_hours_sum_exactly() {
+        let data = Data {
+            entries: vec![entry(0, 1, Kind::Backend, "0.1"), entry(1, 1, Kind::Support, "4.1"), entry(2, 1, Kind::Frontend, "3.8")],
+            next_id: 3,
+            ..Default::default()
+        };
+        assert_eq!(data.day_total(d(1)), 8.0);
+        assert!(!data.has_overfull_day(Month::of(d(1))));
+        assert_eq!(parse_hours("0.125"), 0.13);
     }
 
     #[test]

@@ -232,7 +232,7 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
     c.hline(LEFT, RIGHT, c.y, INK, 0.8);
 
     for week in month.weeks() {
-        let week_total: f64 = week.iter().map(|&d| data.day_total(d)).sum();
+        let week_total = data.days_total(&week);
         let first_lines = data.lines(week[0]).count().max(1);
         c.ensure(ROW_H * (1 + first_lines) as f32);
         let base = c.y + 14.0;

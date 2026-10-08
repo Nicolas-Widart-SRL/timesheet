@@ -1274,7 +1274,7 @@ impl App {
 // Week chip and day card
 
 fn week_chip(ui: &mut Ui, data: &Data, month: Month, week: &[NaiveDate], selected: bool, width: f32) -> Response {
-    let total: f64 = week.iter().map(|&d| data.day_total(d)).sum();
+    let total = data.days_total(week);
     let target = week.len() as f64 * MAX_DAY_HOURS;
     let over = week.iter().any(|&d| data.day_total(d) > MAX_DAY_HOURS);
     let (status, status_color, bar_color) = if over {
