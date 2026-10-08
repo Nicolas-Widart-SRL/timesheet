@@ -5,15 +5,15 @@ use std::sync::Arc;
 
 use chrono::{Datelike, NaiveDate};
 use eframe::egui::{
-    self, Align, Align2, Color32, CornerRadius, CursorIcon, FontData, FontDefinitions, FontFamily, FontId, Frame,
-    Id, Layout, Margin, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, TextEdit, Ui, UiBuilder, Vec2,
-    WidgetInfo, WidgetType, pos2, text::LayoutJob, vec2,
+    self, Align, Align2, Color32, CornerRadius, CursorIcon, FontData, FontDefinitions, FontFamily,
+    FontId, Frame, Id, Layout, Margin, Painter, Pos2, Rect, Response, Sense, Shape, Stroke,
+    StrokeKind, TextEdit, Ui, UiBuilder, Vec2, WidgetInfo, WidgetType, pos2, text::LayoutJob, vec2,
 };
 
 use crate::fonts;
 use crate::model::{
-    Approval, ApprovalStatus, Data, Kind, MAX_DAY_HOURS, Month, Settings, Store, day_range, fmt_hours, weekday_long,
-    weekday_short,
+    Approval, ApprovalStatus, Data, Kind, MAX_DAY_HOURS, Month, Settings, Store, day_range,
+    fmt_hours, weekday_long, weekday_short,
 };
 use crate::pdf;
 
@@ -76,7 +76,11 @@ fn sans(size: f32, weight: W) -> FontId {
 }
 
 fn mono(size: f32, semibold: bool) -> FontId {
-    if semibold { FontId::new(size, FontFamily::Name("mono-semibold".into())) } else { FontId::monospace(size) }
+    if semibold {
+        FontId::new(size, FontFamily::Name("mono-semibold".into()))
+    } else {
+        FontId::monospace(size)
+    }
 }
 
 fn setup_fonts(ctx: &egui::Context) {
@@ -90,11 +94,22 @@ fn setup_fonts(ctx: &egui::Context) {
         ("mono-semibold", fonts::MONO_SEMIBOLD),
     ];
     for (name, bytes) in faces {
-        defs.font_data.insert(name.into(), Arc::new(FontData::from_static(bytes)));
+        defs.font_data
+            .insert(name.into(), Arc::new(FontData::from_static(bytes)));
     }
-    let fallback = defs.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
-    defs.families.entry(FontFamily::Proportional).or_default().insert(0, "sans-regular".into());
-    defs.families.entry(FontFamily::Monospace).or_default().insert(0, "mono-regular".into());
+    let fallback = defs
+        .families
+        .get(&FontFamily::Proportional)
+        .cloned()
+        .unwrap_or_default();
+    defs.families
+        .entry(FontFamily::Proportional)
+        .or_default()
+        .insert(0, "sans-regular".into());
+    defs.families
+        .entry(FontFamily::Monospace)
+        .or_default()
+        .insert(0, "mono-regular".into());
     for (family, face) in [
         ("medium", "sans-medium"),
         ("semibold", "sans-semibold"),
@@ -111,10 +126,18 @@ fn setup_fonts(ctx: &egui::Context) {
 fn setup_style(ctx: &egui::Context) {
     ctx.set_theme(egui::Theme::Light);
     ctx.all_styles_mut(|style| {
-        style.text_styles.insert(egui::TextStyle::Body, sans(15.0, W::Regular));
-        style.text_styles.insert(egui::TextStyle::Button, sans(15.0, W::Regular));
-        style.text_styles.insert(egui::TextStyle::Heading, sans(30.0, W::Bold));
-        style.text_styles.insert(egui::TextStyle::Small, sans(13.0, W::Regular));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Body, sans(15.0, W::Regular));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Button, sans(15.0, W::Regular));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Heading, sans(30.0, W::Bold));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Small, sans(13.0, W::Regular));
         style.spacing.item_spacing = vec2(8.0, 8.0);
         let v = &mut style.visuals;
         v.panel_fill = BG;
@@ -126,7 +149,13 @@ fn setup_style(ctx: &egui::Context) {
         v.text_cursor.stroke = Stroke::new(2.0, ACCENT);
         v.hyperlink_color = ACCENT;
         let radius = CornerRadius::same(10);
-        for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
+        for w in [
+            &mut v.widgets.noninteractive,
+            &mut v.widgets.inactive,
+            &mut v.widgets.hovered,
+            &mut v.widgets.active,
+            &mut v.widgets.open,
+        ] {
             w.corner_radius = radius;
             w.expansion = 0.0;
             w.fg_stroke.color = INK;
@@ -160,7 +189,12 @@ impl Icon {
         let s = size / 24.0;
         let at = |x: f32, y: f32| pos2(c.x + (x - 12.0) * s, c.y + (y - 12.0) * s);
         let stroke = Stroke::new(width, color);
-        let line = |pts: &[(f32, f32)]| p.add(Shape::line(pts.iter().map(|&(x, y)| at(x, y)).collect(), stroke));
+        let line = |pts: &[(f32, f32)]| {
+            p.add(Shape::line(
+                pts.iter().map(|&(x, y)| at(x, y)).collect(),
+                stroke,
+            ))
+        };
         match self {
             Icon::ChevronLeft => line(&[(15.0, 6.0), (9.0, 12.0), (15.0, 18.0)]),
             Icon::ChevronRight => line(&[(9.0, 6.0), (15.0, 12.0), (9.0, 18.0)]),
@@ -183,7 +217,16 @@ impl Icon {
             }
             Icon::Check => line(&[(5.0, 12.5), (10.0, 17.0), (19.0, 7.5)]),
             Icon::FileCheck => {
-                line(&[(14.0, 3.0), (5.0, 3.0), (5.0, 21.0), (19.0, 21.0), (19.0, 8.0), (14.0, 3.0), (14.0, 8.0), (19.0, 8.0)]);
+                line(&[
+                    (14.0, 3.0),
+                    (5.0, 3.0),
+                    (5.0, 21.0),
+                    (19.0, 21.0),
+                    (19.0, 8.0),
+                    (14.0, 3.0),
+                    (14.0, 8.0),
+                    (19.0, 8.0),
+                ]);
                 line(&[(9.0, 14.0), (11.0, 16.0), (15.0, 12.0)])
             }
             Icon::Paperclip => {
@@ -243,10 +286,21 @@ impl<'a> Btn<'a> {
         }
     }
     fn primary(text: &'a str) -> Self {
-        Btn { fill: ACCENT, hover_fill: ACCENT_DARK, fg: WHITE, font: sans(15.0, W::SemiBold), ..Self::base(text) }
+        Btn {
+            fill: ACCENT,
+            hover_fill: ACCENT_DARK,
+            fg: WHITE,
+            font: sans(15.0, W::SemiBold),
+            ..Self::base(text)
+        }
     }
     fn outline(text: &'a str) -> Self {
-        Btn { fill: WHITE, hover_fill: BG, stroke: Stroke::new(1.0, INPUT_BORDER), ..Self::base(text) }
+        Btn {
+            fill: WHITE,
+            hover_fill: BG,
+            stroke: Stroke::new(1.0, INPUT_BORDER),
+            ..Self::base(text)
+        }
     }
     fn icon(mut self, icon: Icon, size: f32) -> Self {
         self.icon = Some((icon, size));
@@ -270,7 +324,9 @@ impl<'a> Btn<'a> {
     }
 
     fn show(self, ui: &mut Ui) -> Response {
-        let galley = ui.painter().layout_no_wrap(self.text.to_owned(), self.font.clone(), self.fg);
+        let galley = ui
+            .painter()
+            .layout_no_wrap(self.text.to_owned(), self.font.clone(), self.fg);
         let icon_w = match self.icon {
             Some((_, s)) if self.text.is_empty() => s,
             Some((_, s)) => s + 8.0,
@@ -278,7 +334,11 @@ impl<'a> Btn<'a> {
         };
         let content_w = icon_w + galley.size().x;
         let size = vec2((content_w + 2.0 * self.pad).max(self.min.x), self.min.y);
-        let sense = if self.enabled { Sense::click() } else { Sense::hover() };
+        let sense = if self.enabled {
+            Sense::click()
+        } else {
+            Sense::hover()
+        };
         let (rect, response) = ui.allocate_exact_size(size, sense);
         let label = self.a11y.clone().unwrap_or_else(|| self.text.to_owned());
         response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, self.enabled, &label));
@@ -286,7 +346,11 @@ impl<'a> Btn<'a> {
         if ui.is_rect_visible(rect) {
             let p = ui.painter();
             let alpha = if self.enabled { 1.0 } else { 0.45 };
-            let fill = if self.enabled && response.hovered() { self.hover_fill } else { self.fill };
+            let fill = if self.enabled && response.hovered() {
+                self.hover_fill
+            } else {
+                self.fill
+            };
             p.rect_filled(rect, self.radius, fill.gamma_multiply(alpha));
             if self.dashed {
                 dashed_rect(p, rect.shrink(0.5), Stroke::new(1.0, HOVER_BORDER));
@@ -294,7 +358,11 @@ impl<'a> Btn<'a> {
                 p.rect_stroke(rect, self.radius, self.stroke, StrokeKind::Inside);
             }
             focus_ring(ui, &response, rect, self.radius);
-            let mut x = if self.left { rect.left() + self.pad } else { rect.center().x - content_w / 2.0 };
+            let mut x = if self.left {
+                rect.left() + self.pad
+            } else {
+                rect.center().x - content_w / 2.0
+            };
             let fg = self.fg.gamma_multiply(alpha);
             if let Some((icon, s)) = self.icon {
                 icon.paint(p, pos2(x + s / 2.0, rect.center().y), s, fg, 2.0);
@@ -302,18 +370,33 @@ impl<'a> Btn<'a> {
             }
             p.galley(pos2(x, rect.center().y - galley.size().y / 2.0), galley, fg);
         }
-        if self.enabled { response.on_hover_cursor(CursorIcon::PointingHand) } else { response }
+        if self.enabled {
+            response.on_hover_cursor(CursorIcon::PointingHand)
+        } else {
+            response
+        }
     }
 }
 
 fn focus_ring(ui: &Ui, response: &Response, rect: Rect, radius: u8) {
     if response.has_focus() {
-        ui.painter().rect_stroke(rect.expand(2.0), radius + 2, Stroke::new(2.0, ACCENT), StrokeKind::Outside);
+        ui.painter().rect_stroke(
+            rect.expand(2.0),
+            radius + 2,
+            Stroke::new(2.0, ACCENT),
+            StrokeKind::Outside,
+        );
     }
 }
 
 fn dashed_rect(p: &Painter, r: Rect, stroke: Stroke) {
-    let pts = [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()];
+    let pts = [
+        r.left_top(),
+        r.right_top(),
+        r.right_bottom(),
+        r.left_bottom(),
+        r.left_top(),
+    ];
     for pair in pts.windows(2) {
         p.extend(Shape::dashed_line(pair, stroke, 4.0, 3.0));
     }
@@ -323,7 +406,15 @@ fn text(ui: &mut Ui, s: impl Into<String>, font: FontId, color: Color32) -> Resp
     ui.label(egui::RichText::new(s).font(font).color(color))
 }
 
-fn pill(ui: &mut Ui, s: &str, bg: Color32, fg: Color32, font: FontId, pad: Vec2, radius: u8) -> Response {
+fn pill(
+    ui: &mut Ui,
+    s: &str,
+    bg: Color32,
+    fg: Color32,
+    font: FontId,
+    pad: Vec2,
+    radius: u8,
+) -> Response {
     let galley = ui.painter().layout_no_wrap(s.to_owned(), font, fg);
     let (rect, response) = ui.allocate_exact_size(galley.size() + 2.0 * pad, Sense::hover());
     ui.painter().rect_filled(rect, radius, bg);
@@ -349,8 +440,21 @@ fn paint_bar(p: &Painter, rect: Rect, track: Color32, segments: &[(f32, Color32)
         }
         let seg = Rect::from_min_size(pos2(x, rect.top()), vec2(w, rect.height()));
         let left = if i == 0 { r } else { 0 };
-        let right = if seg.right() >= rect.right() - 0.5 { r } else { 0 };
-        p.rect_filled(seg, CornerRadius { nw: left, sw: left, ne: right, se: right }, color);
+        let right = if seg.right() >= rect.right() - 0.5 {
+            r
+        } else {
+            0
+        };
+        p.rect_filled(
+            seg,
+            CornerRadius {
+                nw: left,
+                sw: left,
+                ne: right,
+                se: right,
+            },
+            color,
+        );
         x += w;
     }
 }
@@ -360,7 +464,12 @@ fn bar(ui: &mut Ui, width: f32, height: f32, segments: &[(f32, Color32)]) {
     paint_bar(ui.painter(), rect, DIVIDER, segments);
 }
 
-fn card<R>(ui: &mut Ui, border: Color32, margin: impl Into<Margin>, add: impl FnOnce(&mut Ui) -> R) -> R {
+fn card<R>(
+    ui: &mut Ui,
+    border: Color32,
+    margin: impl Into<Margin>,
+    add: impl FnOnce(&mut Ui) -> R,
+) -> R {
     Frame::new()
         .fill(WHITE)
         .stroke(Stroke::new(1.0, border))
@@ -375,39 +484,82 @@ fn card<R>(ui: &mut Ui, border: Color32, margin: impl Into<Margin>, add: impl Fn
 
 /// Small uppercase column heading.
 fn caption(ui: &mut Ui, s: &str) {
-    ui.label(egui::RichText::new(s.to_uppercase()).font(sans(12.0, W::SemiBold)).color(MUTED).extra_letter_spacing(0.72));
+    ui.label(
+        egui::RichText::new(s.to_uppercase())
+            .font(sans(12.0, W::SemiBold))
+            .color(MUTED)
+            .extra_letter_spacing(0.72),
+    );
 }
 
 /// 22 px checkbox with a semibold label, in a 44 px tall row. Returns a changed response when toggled.
-fn checkbox(ui: &mut Ui, checked: &mut bool, label: &str, accent: Color32, enabled: bool) -> Response {
+fn checkbox(
+    ui: &mut Ui,
+    checked: &mut bool,
+    label: &str,
+    accent: Color32,
+    enabled: bool,
+) -> Response {
     let fg = if enabled { INK } else { DISABLED };
-    let galley = ui.painter().layout_no_wrap(label.to_owned(), sans(15.0, W::SemiBold), fg);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), sans(15.0, W::SemiBold), fg);
     let size = vec2(22.0 + 10.0 + galley.size().x, 44.0);
-    let (rect, mut response) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
+    let (rect, mut response) = ui.allocate_exact_size(
+        size,
+        if enabled {
+            Sense::click()
+        } else {
+            Sense::hover()
+        },
+    );
     if response.clicked() {
         *checked = !*checked;
         response.mark_changed();
     }
     response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, enabled, *checked, label));
     let p = ui.painter();
-    let box_rect = Rect::from_center_size(pos2(rect.left() + 11.0, rect.center().y), vec2(22.0, 22.0));
+    let box_rect =
+        Rect::from_center_size(pos2(rect.left() + 11.0, rect.center().y), vec2(22.0, 22.0));
     let alpha = if enabled { 1.0 } else { 0.45 };
     if *checked {
         p.rect_filled(box_rect, 5, accent.gamma_multiply(alpha));
         Icon::Check.paint(p, box_rect.center(), 18.0, WHITE, 2.5);
     } else {
-        let border = if enabled && response.hovered() { accent } else { MUTED };
+        let border = if enabled && response.hovered() {
+            accent
+        } else {
+            MUTED
+        };
         p.rect_filled(box_rect, 5, WHITE);
-        p.rect_stroke(box_rect, 5, Stroke::new(1.5, border.gamma_multiply(alpha)), StrokeKind::Inside);
+        p.rect_stroke(
+            box_rect,
+            5,
+            Stroke::new(1.5, border.gamma_multiply(alpha)),
+            StrokeKind::Inside,
+        );
     }
-    p.galley(pos2(box_rect.right() + 10.0, rect.center().y - galley.size().y / 2.0), galley, fg);
+    p.galley(
+        pos2(
+            box_rect.right() + 10.0,
+            rect.center().y - galley.size().y / 2.0,
+        ),
+        galley,
+        fg,
+    );
     focus_ring(ui, &response, rect, 8);
-    response.on_hover_cursor(if enabled { CursorIcon::PointingHand } else { CursorIcon::NotAllowed })
+    response.on_hover_cursor(if enabled {
+        CursorIcon::PointingHand
+    } else {
+        CursorIcon::NotAllowed
+    })
 }
 
 /// Date picker button styled like the mockup's date input. Returns true when the date changed.
 fn date_field(ui: &mut Ui, date: &mut NaiveDate, id_salt: &str, a11y: &str) -> bool {
-    let mut picked = jiff::civil::Date::new(date.year() as i16, date.month() as i8, date.day() as i8).unwrap_or_default();
+    let mut picked =
+        jiff::civil::Date::new(date.year() as i16, date.month() as i8, date.day() as i8)
+            .unwrap_or_default();
     let response = ui
         .scope(|ui| {
             ui.spacing_mut().interact_size.y = 38.0;
@@ -426,8 +578,13 @@ fn date_field(ui: &mut Ui, date: &mut NaiveDate, id_salt: &str, a11y: &str) -> b
             )
         })
         .inner;
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, format!("{a11y}: {date}")));
-    let new = NaiveDate::from_ymd_opt(picked.year().into(), picked.month() as u32, picked.day() as u32);
+    response
+        .widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, format!("{a11y}: {date}")));
+    let new = NaiveDate::from_ymd_opt(
+        picked.year().into(),
+        picked.month() as u32,
+        picked.day() as u32,
+    );
     match new {
         Some(d) if response.changed() && d != *date => {
             *date = d;
@@ -471,7 +628,10 @@ fn flex_wrap(ui: &mut Ui, items: &[(f32, f32)], gap: Vec2, mut add: impl FnMut(&
 /// Opens `path` with the system's default app.
 fn open_path(path: &Path) -> std::io::Result<()> {
     if !path.exists() {
-        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "file is missing"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "file is missing",
+        ));
     }
     let program = if cfg!(target_os = "macos") {
         "open"
@@ -489,7 +649,11 @@ fn open_path(path: &Path) -> std::io::Result<()> {
 fn progress_status(data: &Data, month: Month) -> (&'static str, Color32, Color32) {
     if data.has_overfull_day(month) {
         ("Needs fixes", DANGER_SOFT, DANGER)
-    } else if month.weekdays().iter().all(|&d| data.day_total(d) >= MAX_DAY_HOURS) {
+    } else if month
+        .weekdays()
+        .iter()
+        .all(|&d| data.day_total(d) >= MAX_DAY_HOURS)
+    {
         ("Complete", OK_SOFT, OK_FG)
     } else if data.month_total(month) > 0.0 {
         ("In progress", CHIP, INK2)
@@ -504,12 +668,20 @@ fn note_ui(ui: &mut Ui, note: &Result<String, String>) {
         Ok(msg) => (msg, W::Regular, OK_FG),
         Err(msg) => (msg, W::SemiBold, DANGER),
     };
-    ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(13.0, weight)).color(color)).wrap());
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new(msg)
+                .font(sans(13.0, weight))
+                .color(color),
+        )
+        .wrap(),
+    );
 }
 
 fn hline(ui: &mut Ui, color: Color32) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
-    ui.painter().hline(rect.x_range(), rect.center().y, Stroke::new(1.0, color));
+    ui.painter()
+        .hline(rect.x_range(), rect.center().y, Stroke::new(1.0, color));
 }
 
 /// Places `add` in a horizontally centred column of at most `max_w` (including `pad` on both sides).
@@ -518,10 +690,15 @@ fn centered<R>(ui: &mut Ui, max_w: f32, pad: f32, add: impl FnOnce(&mut Ui) -> R
     let w = (avail.width().min(max_w) - 2.0 * pad).max(100.0);
     let left = avail.left() + (avail.width() - w) / 2.0;
     let rect = Rect::from_min_size(pos2(left, avail.top()), vec2(w, avail.height().max(0.0)));
-    ui.scope_builder(UiBuilder::new().max_rect(rect).layout(Layout::top_down(Align::Min)), |ui| {
-        ui.set_width(w);
-        add(ui)
-    })
+    ui.scope_builder(
+        UiBuilder::new()
+            .max_rect(rect)
+            .layout(Layout::top_down(Align::Min)),
+        |ui| {
+            ui.set_width(w);
+            add(ui)
+        },
+    )
     .inner
 }
 
@@ -615,7 +792,10 @@ impl App {
 
     fn save(&mut self) {
         if let Err(e) = self.store.save() {
-            self.banner = Some(format!("Could not save to {}: {e}", self.data_path.display()));
+            self.banner = Some(format!(
+                "Could not save to {}: {e}",
+                self.data_path.display()
+            ));
         }
     }
 
@@ -640,7 +820,10 @@ impl App {
         else {
             return;
         };
-        if path.extension().is_none_or(|e| !e.eq_ignore_ascii_case("pdf")) {
+        if path
+            .extension()
+            .is_none_or(|e| !e.eq_ignore_ascii_case("pdf"))
+        {
             path.set_extension("pdf");
         }
         let bytes = match report {
@@ -648,7 +831,10 @@ impl App {
             Report::Summary => pdf::daily_summary(self.data(), month),
         };
         let note = bytes
-            .and_then(|b| std::fs::write(&path, b).map_err(|e| format!("Could not write {}: {e}", path.display())))
+            .and_then(|b| {
+                std::fs::write(&path, b)
+                    .map_err(|e| format!("Could not write {}: {e}", path.display()))
+            })
             .map(|()| format!("Saved {}", path.display()));
         self.export_note = Some((month, note));
     }
@@ -669,7 +855,10 @@ impl App {
         else {
             return;
         };
-        if path.extension().is_none_or(|e| !e.eq_ignore_ascii_case("json")) {
+        if path
+            .extension()
+            .is_none_or(|e| !e.eq_ignore_ascii_case("json"))
+        {
             path.set_extension("json");
         }
         let note = self
@@ -682,7 +871,11 @@ impl App {
     }
 
     fn import_data(&mut self) {
-        let Some(path) = rfd::FileDialog::new().set_title("Import data").add_filter("JSON", &["json"]).pick_file() else {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title("Import data")
+            .add_filter("JSON", &["json"])
+            .pick_file()
+        else {
             return;
         };
         let confirmed = rfd::MessageDialog::new()
@@ -696,13 +889,22 @@ impl App {
             .set_buttons(rfd::MessageButtons::OkCancelCustom("Replace".into(), "Cancel".into()))
             .show();
         // The Windows message-box fallback reports a custom OK button as `Ok`.
-        if !matches!(confirmed, rfd::MessageDialogResult::Ok) && confirmed != rfd::MessageDialogResult::Custom("Replace".into()) {
+        if !matches!(confirmed, rfd::MessageDialogResult::Ok)
+            && confirmed != rfd::MessageDialogResult::Custom("Replace".into())
+        {
             return;
         }
         let note = std::fs::read(&path)
-            .and_then(|bytes| self.store.import_backup(&bytes, chrono::Local::now().naive_local()))
+            .and_then(|bytes| {
+                self.store
+                    .import_backup(&bytes, chrono::Local::now().naive_local())
+            })
             .map(|previous| match previous {
-                Some(previous) => format!("Imported {}. Previous data saved to {}", path.display(), previous.display()),
+                Some(previous) => format!(
+                    "Imported {}. Previous data saved to {}",
+                    path.display(),
+                    previous.display()
+                ),
                 None => format!("Imported {}", path.display()),
             })
             .map_err(|e| format!("Could not import {}: {e}", path.display()));
@@ -722,22 +924,26 @@ impl eframe::App for App {
             .show(ui, |ui| self.top_bar(ui));
 
         let mut dirty = false;
-        egui::CentralPanel::no_frame().frame(Frame::new().fill(BG)).show(ui, |ui| {
-            egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-                centered(ui, 1280.0, 32.0, |ui| {
-                    ui.add_space(32.0);
-                    ui.spacing_mut().item_spacing.y = 20.0;
-                    if let Some(msg) = self.banner.clone() {
-                        self.banner_ui(ui, &msg);
-                    }
-                    match self.view {
-                        View::Timesheet => dirty |= self.timesheet(ui),
-                        View::PastMonths => dirty |= self.past_months(ui),
-                    }
-                    ui.add_space(32.0);
-                });
+        egui::CentralPanel::no_frame()
+            .frame(Frame::new().fill(BG))
+            .show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .auto_shrink(false)
+                    .show(ui, |ui| {
+                        centered(ui, 1280.0, 32.0, |ui| {
+                            ui.add_space(32.0);
+                            ui.spacing_mut().item_spacing.y = 20.0;
+                            if let Some(msg) = self.banner.clone() {
+                                self.banner_ui(ui, &msg);
+                            }
+                            match self.view {
+                                View::Timesheet => dirty |= self.timesheet(ui),
+                                View::PastMonths => dirty |= self.past_months(ui),
+                            }
+                            ui.add_space(32.0);
+                        });
+                    });
             });
-        });
 
         dirty |= self.settings_modal(ui.ctx());
         if dirty {
@@ -749,7 +955,11 @@ impl eframe::App for App {
 impl App {
     fn top_bar(&mut self, ui: &mut Ui) {
         let full = ui.max_rect();
-        ui.painter().hline(full.x_range(), full.bottom() - 0.5, Stroke::new(1.0, BORDER));
+        ui.painter().hline(
+            full.x_range(),
+            full.bottom() - 0.5,
+            Stroke::new(1.0, BORDER),
+        );
         centered(ui, 1280.0, 32.0, |ui| {
             ui.set_height(64.0);
             ui.horizontal_centered(|ui| {
@@ -759,7 +969,10 @@ impl App {
                 text(ui, "Timesheet", sans(17.0, W::Bold), INK);
                 ui.add_space(22.0);
                 ui.spacing_mut().item_spacing.x = 4.0;
-                for (view, label) in [(View::Timesheet, "Timesheet"), (View::PastMonths, "Past months")] {
+                for (view, label) in [
+                    (View::Timesheet, "Timesheet"),
+                    (View::PastMonths, "Past months"),
+                ] {
                     let on = self.view == view;
                     let mut b = Btn::base(label).min(0.0, 40.0);
                     b.pad = 14.0;
@@ -779,12 +992,28 @@ impl App {
                     let settings = &self.store.data.settings;
                     let (rect, response) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::click());
                     let name = settings.consultant_or_placeholder().to_owned();
-                    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, format!("Signed in as {name}. Edit settings")));
+                    response.widget_info(|| {
+                        WidgetInfo::labeled(
+                            WidgetType::Button,
+                            true,
+                            format!("Signed in as {name}. Edit settings"),
+                        )
+                    });
                     let fill = if response.hovered() { INK2 } else { INK };
                     ui.painter().circle_filled(rect.center(), 18.0, fill);
-                    ui.painter().text(rect.center(), Align2::CENTER_CENTER, settings.initials(), sans(13.0, W::SemiBold), WHITE);
+                    ui.painter().text(
+                        rect.center(),
+                        Align2::CENTER_CENTER,
+                        settings.initials(),
+                        sans(13.0, W::SemiBold),
+                        WHITE,
+                    );
                     focus_ring(ui, &response, rect, 18);
-                    if response.on_hover_cursor(CursorIcon::PointingHand).on_hover_text("Settings").clicked() {
+                    if response
+                        .on_hover_cursor(CursorIcon::PointingHand)
+                        .on_hover_text("Settings")
+                        .clicked()
+                    {
                         self.settings_draft = Some(self.store.data.settings.clone());
                         self.backup_note = None;
                     }
@@ -794,17 +1023,34 @@ impl App {
     }
 
     fn banner_ui(&mut self, ui: &mut Ui, msg: &str) {
-        Frame::new().fill(DANGER_SOFT).corner_radius(10).inner_margin(Margin::symmetric(16, 12)).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.add(egui::Label::new(egui::RichText::new(msg).color(DANGER).font(sans(14.0, W::SemiBold))).wrap());
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if Btn::base("").icon(Icon::Close, 16.0).a11y("Dismiss").min(32.0, 32.0).show(ui).clicked() {
-                        self.banner = None;
-                    }
+        Frame::new()
+            .fill(DANGER_SOFT)
+            .corner_radius(10)
+            .inner_margin(Margin::symmetric(16, 12))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(msg)
+                                .color(DANGER)
+                                .font(sans(14.0, W::SemiBold)),
+                        )
+                        .wrap(),
+                    );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if Btn::base("")
+                            .icon(Icon::Close, 16.0)
+                            .a11y("Dismiss")
+                            .min(32.0, 32.0)
+                            .show(ui)
+                            .clicked()
+                        {
+                            self.banner = None;
+                        }
+                    });
                 });
             });
-        });
     }
 
     // -----------------------------------------------------------------------
@@ -825,23 +1071,48 @@ impl App {
                     let s = &self.store.data.settings;
                     text(ui, s.project_or_placeholder(), sans(15.0, W::SemiBold), INK);
                     text(ui, s.client_or_placeholder(), sans(14.0, W::Regular), MUTED);
-                    pill(ui, "Draft · sent monthly", CHIP, INK2, sans(13.0, W::SemiBold), vec2(10.0, 3.0), 99);
+                    pill(
+                        ui,
+                        "Draft · sent monthly",
+                        CHIP,
+                        INK2,
+                        sans(13.0, W::SemiBold),
+                        vec2(10.0, 3.0),
+                        99,
+                    );
                 });
                 ui.horizontal(|ui| {
-                    if Btn::outline("").icon(Icon::ChevronLeft, 18.0).a11y("Previous month").min(44.0, 44.0).show(ui).clicked() {
+                    if Btn::outline("")
+                        .icon(Icon::ChevronLeft, 18.0)
+                        .a11y("Previous month")
+                        .min(44.0, 44.0)
+                        .show(ui)
+                        .clicked()
+                    {
                         self.open_month(month.prev());
                     }
                     ui.add_space(4.0);
                     text(ui, month.label(), sans(30.0, W::Bold), INK);
                     ui.add_space(4.0);
-                    if Btn::outline("").icon(Icon::ChevronRight, 18.0).a11y("Next month").min(44.0, 44.0).show(ui).clicked() {
+                    if Btn::outline("")
+                        .icon(Icon::ChevronRight, 18.0)
+                        .a11y("Next month")
+                        .min(44.0, 44.0)
+                        .show(ui)
+                        .clicked()
+                    {
                         self.open_month(month.next());
                     }
                 });
             });
             ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
                 ui.spacing_mut().item_spacing.x = 16.0;
-                text(ui, "Weekdays only · max 8 h per day", sans(14.0, W::Regular), MUTED);
+                text(
+                    ui,
+                    "Weekdays only · max 8 h per day",
+                    sans(14.0, W::Regular),
+                    MUTED,
+                );
                 for kind in Kind::ALL.iter().rev() {
                     // Inside a right-to-left layout: the label is added first so the swatch sits on its left.
                     ui.horizontal(|ui| {
@@ -858,7 +1129,11 @@ impl App {
         let wide = ui.available_width() >= 1000.0;
         let side_w = 340.0;
         let gap = 24.0;
-        let main_w = if wide { ui.available_width() - side_w - gap } else { ui.available_width() };
+        let main_w = if wide {
+            ui.available_width() - side_w - gap
+        } else {
+            ui.available_width()
+        };
         let mut days_ui = |ui: &mut Ui, this: &mut Self| {
             ui.set_width(main_w);
             ui.spacing_mut().item_spacing.y = 16.0;
@@ -898,12 +1173,18 @@ impl App {
         let cols = (((width + gap) / 160.0).floor() as usize).clamp(1, weeks.len().max(1));
         let chip_w = (width - gap * (cols - 1) as f32) / cols as f32;
         let month = self.month;
-        for row in weeks.chunks(cols).enumerate().map(|(r, c)| (r * cols, c)).collect::<Vec<_>>() {
+        for row in weeks
+            .chunks(cols)
+            .enumerate()
+            .map(|(r, c)| (r * cols, c))
+            .collect::<Vec<_>>()
+        {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = gap;
                 for (k, week) in row.1.iter().enumerate() {
                     let index = row.0 + k;
-                    if week_chip(ui, self.data(), month, week, index == self.week, chip_w).clicked() {
+                    if week_chip(ui, self.data(), month, week, index == self.week, chip_w).clicked()
+                    {
                         self.week = index;
                     }
                 }
@@ -916,11 +1197,18 @@ impl App {
         let month = self.month;
         let data = self.data();
         let days = month.weekdays();
-        let open: Vec<NaiveDate> = days.iter().copied().filter(|&d| data.day_total(d) < MAX_DAY_HOURS).collect();
+        let open: Vec<NaiveDate> = days
+            .iter()
+            .copied()
+            .filter(|&d| data.day_total(d) < MAX_DAY_HOURS)
+            .collect();
         let any_over = data.has_overfull_day(month);
         let target = month.target_hours();
         let total = data.month_total(month);
-        let by_kind: Vec<(Kind, f64)> = Kind::ALL.iter().map(|&k| (k, data.kind_total(month, k))).collect();
+        let by_kind: Vec<(Kind, f64)> = Kind::ALL
+            .iter()
+            .map(|&k| (k, data.kind_total(month, k)))
+            .collect();
         ui.spacing_mut().item_spacing.y = 16.0;
 
         card(ui, BORDER, Margin::same(20), |ui| {
@@ -929,12 +1217,23 @@ impl App {
                 text(ui, month.name(), sans(17.0, W::Bold), INK);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let mut job = LayoutJob::default();
-                    job.append(&fmt_hours(total), 0.0, egui::TextFormat::simple(mono(22.0, true), INK));
-                    job.append(&format!(" / {} h", fmt_hours(target)), 0.0, egui::TextFormat::simple(mono(14.0, false), MUTED));
+                    job.append(
+                        &fmt_hours(total),
+                        0.0,
+                        egui::TextFormat::simple(mono(22.0, true), INK),
+                    );
+                    job.append(
+                        &format!(" / {} h", fmt_hours(target)),
+                        0.0,
+                        egui::TextFormat::simple(mono(14.0, false), MUTED),
+                    );
                     ui.label(job);
                 });
             });
-            let segments: Vec<(f32, Color32)> = by_kind.iter().map(|&(k, h)| ((h / target) as f32, kind_color(k))).collect();
+            let segments: Vec<(f32, Color32)> = by_kind
+                .iter()
+                .map(|&(k, h)| ((h / target) as f32, kind_color(k)))
+                .collect();
             bar(ui, ui.available_width(), 10.0, &segments);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = 8.0;
@@ -954,15 +1253,33 @@ impl App {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
                 let mut job = LayoutJob::default();
-                job.append(&format!("{} of {}", days.len() - open.len(), days.len()), 0.0, egui::TextFormat::simple(sans(14.0, W::Bold), INK));
-                job.append(" workdays complete", 0.0, egui::TextFormat::simple(sans(14.0, W::Regular), INK2));
+                job.append(
+                    &format!("{} of {}", days.len() - open.len(), days.len()),
+                    0.0,
+                    egui::TextFormat::simple(sans(14.0, W::Bold), INK),
+                );
+                job.append(
+                    " workdays complete",
+                    0.0,
+                    egui::TextFormat::simple(sans(14.0, W::Regular), INK2),
+                );
                 ui.add(egui::Label::new(job).extend());
                 if let Some(&first_open) = open.first() {
-                    let label = format!("Next open day: {} {}", weekday_short(first_open), first_open.day());
-                    let mut b = Btn::outline(&label).fg(ACCENT).font(sans(15.0, W::SemiBold)).min(0.0, 40.0);
+                    let label = format!(
+                        "Next open day: {} {}",
+                        weekday_short(first_open),
+                        first_open.day()
+                    );
+                    let mut b = Btn::outline(&label)
+                        .fg(ACCENT)
+                        .font(sans(15.0, W::SemiBold))
+                        .min(0.0, 40.0);
                     b.pad = 12.0;
                     if b.show(ui).clicked() {
-                        self.week = weeks.iter().position(|w| w.contains(&first_open)).unwrap_or(0);
+                        self.week = weeks
+                            .iter()
+                            .position(|w| w.contains(&first_open))
+                            .unwrap_or(0);
                     }
                 }
             });
@@ -971,18 +1288,42 @@ impl App {
         let mut export = None;
         card(ui, BORDER, Margin::same(20), |ui| {
             ui.spacing_mut().item_spacing.y = 12.0;
-            text(ui, format!("Export {}", month.name()), sans(17.0, W::Bold), INK);
+            text(
+                ui,
+                format!("Export {}", month.name()),
+                sans(17.0, W::Bold),
+                INK,
+            );
             if any_over {
-                text(ui, "Fix days over 8 h before exporting.", sans(14.0, W::SemiBold), DANGER);
+                text(
+                    ui,
+                    "Fix days over 8 h before exporting.",
+                    sans(14.0, W::SemiBold),
+                    DANGER,
+                );
             }
             if !open.is_empty() {
-                let msg = format!("{} workdays still under 8 h. You can export a draft anytime.", open.len());
-                ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(14.0, W::Regular)).color(WARN)).wrap());
+                let msg = format!(
+                    "{} workdays still under 8 h. You can export a draft anytime.",
+                    open.len()
+                );
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(msg)
+                            .font(sans(14.0, W::Regular))
+                            .color(WARN),
+                    )
+                    .wrap(),
+                );
             }
             let full = ui.available_width();
             for (report, primary) in [(Report::Detailed, true), (Report::Summary, false)] {
                 let label = format!("{} (PDF)", report.title());
-                let mut b = if primary { Btn::primary(&label) } else { Btn::outline(&label).font(sans(15.0, W::SemiBold)) };
+                let mut b = if primary {
+                    Btn::primary(&label)
+                } else {
+                    Btn::outline(&label).font(sans(15.0, W::SemiBold))
+                };
                 b = b.icon(Icon::Download, 18.0).min(full, 48.0);
                 b.left = true;
                 b.enabled = !any_over;
@@ -990,7 +1331,10 @@ impl App {
                     export = Some(report);
                 }
             }
-            let note = format!("Both PDFs cover {}, weekdays only.", month.period_label().rsplit_once(',').map_or("", |p| p.0));
+            let note = format!(
+                "Both PDFs cover {}, weekdays only.",
+                month.period_label().rsplit_once(',').map_or("", |p| p.0)
+            );
             text(ui, note, sans(13.0, W::Regular), MUTED);
             self.export_note_ui(ui, month);
         });
@@ -1007,7 +1351,10 @@ impl App {
         let today = self.today;
         let current = Month::of(today);
         let months = self.data().closed_months(current);
-        let statuses: Vec<ApprovalStatus> = months.iter().map(|&m| self.data().approval(m).status(today)).collect();
+        let statuses: Vec<ApprovalStatus> = months
+            .iter()
+            .map(|&m| self.data().approval(m).status(today))
+            .collect();
         let mut dirty = false;
 
         // Title row.
@@ -1023,14 +1370,38 @@ impl App {
             });
             ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
-                let count = |f: fn(&ApprovalStatus) -> bool| statuses.iter().filter(|s| f(s)).count();
+                let count =
+                    |f: fn(&ApprovalStatus) -> bool| statuses.iter().filter(|s| f(s)).count();
                 let counts = [
-                    (count(|s| matches!(s, ApprovalStatus::NotSent)), "not sent", CHIP, INK2),
-                    (count(|s| matches!(s, ApprovalStatus::Awaiting { .. })), "awaiting signature", ACCENT_SOFT, ACCENT_DARK),
-                    (count(|s| matches!(s, ApprovalStatus::Approved)), "approved", OK_SOFT, OK_FG),
+                    (
+                        count(|s| matches!(s, ApprovalStatus::NotSent)),
+                        "not sent",
+                        CHIP,
+                        INK2,
+                    ),
+                    (
+                        count(|s| matches!(s, ApprovalStatus::Awaiting { .. })),
+                        "awaiting signature",
+                        ACCENT_SOFT,
+                        ACCENT_DARK,
+                    ),
+                    (
+                        count(|s| matches!(s, ApprovalStatus::Approved)),
+                        "approved",
+                        OK_SOFT,
+                        OK_FG,
+                    ),
                 ];
                 for (n, label, bg, fg) in counts.into_iter().rev() {
-                    pill(ui, &format!("{n} {label}"), bg, fg, sans(14.0, W::SemiBold), vec2(12.0, 8.0), 10);
+                    pill(
+                        ui,
+                        &format!("{n} {label}"),
+                        bg,
+                        fg,
+                        sans(14.0, W::SemiBold),
+                        vec2(12.0, 8.0),
+                        10,
+                    );
                 }
             });
         });
@@ -1060,7 +1431,12 @@ impl App {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 12.0;
             if months.is_empty() {
-                text(ui, "No closed months yet. A month appears here once it ends.", sans(15.0, W::Regular), MUTED);
+                text(
+                    ui,
+                    "No closed months yet. A month appears here once it ends.",
+                    sans(15.0, W::Regular),
+                    MUTED,
+                );
             }
             for (&month, &status) in months.iter().zip(&statuses) {
                 let mut approval = self.data().approval(month);
@@ -1082,30 +1458,65 @@ impl App {
         let total = data.month_total(month);
         let target = month.target_hours();
         let (status, bg, fg) = progress_status(data, month);
-        let frame = Frame::new().fill(WHITE).stroke(Stroke::new(1.0, BORDER)).corner_radius(14).inner_margin(Margin::symmetric(20, 16));
-        let rect = frame.show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 16.0;
+        let frame = Frame::new()
+            .fill(WHITE)
+            .stroke(Stroke::new(1.0, BORDER))
+            .corner_radius(14)
+            .inner_margin(Margin::symmetric(20, 16));
+        let rect = frame
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.set_min_width(150.0);
-                    text(ui, month.label(), sans(17.0, W::Bold), INK);
+                    ui.spacing_mut().item_spacing.x = 16.0;
+                    ui.horizontal(|ui| {
+                        ui.set_min_width(150.0);
+                        text(ui, month.label(), sans(17.0, W::Bold), INK);
+                    });
+                    pill(
+                        ui,
+                        status,
+                        bg,
+                        fg,
+                        sans(13.0, W::SemiBold),
+                        vec2(10.0, 4.0),
+                        99,
+                    );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        text(
+                            ui,
+                            "Continue entering time",
+                            sans(15.0, W::SemiBold),
+                            ACCENT,
+                        );
+                        text(
+                            ui,
+                            format!("{} / {} h", fmt_hours(total), fmt_hours(target)),
+                            mono(14.0, false),
+                            INK,
+                        );
+                        ui.spacing_mut().item_spacing.x = 10.0;
+                        bar(
+                            ui,
+                            ui.available_width(),
+                            8.0,
+                            &[((total / target) as f32, ACCENT)],
+                        );
+                    });
                 });
-                pill(ui, status, bg, fg, sans(13.0, W::SemiBold), vec2(10.0, 4.0), 99);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    text(ui, "Continue entering time", sans(15.0, W::SemiBold), ACCENT);
-                    text(ui, format!("{} / {} h", fmt_hours(total), fmt_hours(target)), mono(14.0, false), INK);
-                    ui.spacing_mut().item_spacing.x = 10.0;
-                    bar(ui, ui.available_width(), 8.0, &[((total / target) as f32, ACCENT)]);
-                });
-            });
-        })
-        .response
-        .rect;
+            })
+            .response
+            .rect;
         let response = ui.interact(rect, ui.id().with("current-month"), Sense::click());
-        response.widget_info(|| WidgetInfo::labeled(WidgetType::Link, true, format!("{}, continue entering time", month.label())));
+        response.widget_info(|| {
+            WidgetInfo::labeled(
+                WidgetType::Link,
+                true,
+                format!("{}, continue entering time", month.label()),
+            )
+        });
         if response.hovered() {
-            ui.painter().rect_stroke(rect, 14, Stroke::new(1.0, HOVER_BORDER), StrokeKind::Inside);
+            ui.painter()
+                .rect_stroke(rect, 14, Stroke::new(1.0, HOVER_BORDER), StrokeKind::Inside);
         }
         focus_ring(ui, &response, rect, 14);
         response.on_hover_cursor(CursorIcon::PointingHand).clicked()
@@ -1126,13 +1537,25 @@ impl App {
         let can_export = !data.has_overfull_day(month);
         let (status_text, pill_bg, pill_fg, border) = match status {
             ApprovalStatus::NotSent => ("Not sent", CHIP, INK2, BORDER),
-            ApprovalStatus::Awaiting { late: true, .. } => ("Follow up", WARN_SOFT, WARN, WARN_BORDER),
-            ApprovalStatus::Awaiting { .. } => ("Awaiting signature", ACCENT_SOFT, ACCENT_DARK, BORDER),
-            ApprovalStatus::Approved if approval.signed_pdf.is_some() => ("Approved · signed copy saved", OK_SOFT, OK_FG, BORDER),
+            ApprovalStatus::Awaiting { late: true, .. } => {
+                ("Follow up", WARN_SOFT, WARN, WARN_BORDER)
+            }
+            ApprovalStatus::Awaiting { .. } => {
+                ("Awaiting signature", ACCENT_SOFT, ACCENT_DARK, BORDER)
+            }
+            ApprovalStatus::Approved if approval.signed_pdf.is_some() => {
+                ("Approved · signed copy saved", OK_SOFT, OK_FG, BORDER)
+            }
             ApprovalStatus::Approved => ("Approved", OK_SOFT, OK_FG, BORDER),
         };
         // Mockup flex bases, except the first column, widened to fit the "Approved · signed copy saved" pill.
-        let columns = [(200.0, 1.0), (170.0, 1.0), (190.0, 1.0), (190.0, 1.0), (250.0, 1.4)];
+        let columns = [
+            (200.0, 1.0),
+            (170.0, 1.0),
+            (190.0, 1.0),
+            (190.0, 1.0),
+            (250.0, 1.4),
+        ];
         card(ui, border, Margin::symmetric(20, 18), |ui| {
             flex_wrap(ui, &columns, vec2(28.0, 20.0), |ui, column| {
                 ui.spacing_mut().item_spacing.y = 6.0;
@@ -1140,17 +1563,36 @@ impl App {
                     0 => {
                         text(ui, &label, sans(17.0, W::Bold), INK);
                         let mut job = LayoutJob::default();
-                        job.append(&format!("{} h", fmt_hours(data.month_total(month))), 0.0, egui::TextFormat::simple(mono(14.0, true), INK));
+                        job.append(
+                            &format!("{} h", fmt_hours(data.month_total(month))),
+                            0.0,
+                            egui::TextFormat::simple(mono(14.0, true), INK),
+                        );
                         let days = format!(" · {} workdays", month.weekdays().len());
-                        job.append(&days, 0.0, egui::TextFormat::simple(sans(14.0, W::Regular), INK2));
+                        job.append(
+                            &days,
+                            0.0,
+                            egui::TextFormat::simple(sans(14.0, W::Regular), INK2),
+                        );
                         ui.label(job);
-                        pill(ui, status_text, pill_bg, pill_fg, sans(13.0, W::SemiBold), vec2(10.0, 4.0), 99);
+                        pill(
+                            ui,
+                            status_text,
+                            pill_bg,
+                            pill_fg,
+                            sans(13.0, W::SemiBold),
+                            vec2(10.0, 4.0),
+                            99,
+                        );
                     }
                     1 => {
                         caption(ui, "Generated PDFs");
                         ui.spacing_mut().item_spacing.y = 0.0;
                         for report in [Report::Detailed, Report::Summary] {
-                            let mut b = Btn::base(report.title()).icon(Icon::Download, 16.0).fg(ACCENT).min(0.0, 32.0);
+                            let mut b = Btn::base(report.title())
+                                .icon(Icon::Download, 16.0)
+                                .fg(ACCENT)
+                                .min(0.0, 32.0);
                             b.pad = 0.0;
                             b.left = true;
                             b.hover_fill = Color32::TRANSPARENT;
@@ -1162,7 +1604,12 @@ impl App {
                         }
                         ui.spacing_mut().item_spacing.y = 6.0;
                         if !can_export {
-                            text(ui, "Fix days over 8 h to export.", sans(13.0, W::SemiBold), DANGER);
+                            text(
+                                ui,
+                                "Fix days over 8 h to export.",
+                                sans(13.0, W::SemiBold),
+                                DANGER,
+                            );
                         }
                         self.export_note_ui(ui, month);
                     }
@@ -1173,29 +1620,54 @@ impl App {
                         }
                         match approval.sent.as_mut() {
                             Some(date) => {
-                                date_field(ui, date, &format!("sent-{}", month.key()), &format!("Date sent, {label}"));
+                                date_field(
+                                    ui,
+                                    date,
+                                    &format!("sent-{}", month.key()),
+                                    &format!("Date sent, {label}"),
+                                );
                             }
                             None => {
-                                text(ui, "Tick after emailing both PDFs.", sans(13.0, W::Regular), MUTED);
+                                text(
+                                    ui,
+                                    "Tick after emailing both PDFs.",
+                                    sans(13.0, W::Regular),
+                                    MUTED,
+                                );
                             }
                         }
                     }
                     3 => {
                         let mut approved = approval.approved.is_some();
                         let enabled = approval.sent.is_some();
-                        if checkbox(ui, &mut approved, "Approved by manager", OK, enabled).changed() {
+                        if checkbox(ui, &mut approved, "Approved by manager", OK, enabled).changed()
+                        {
                             approval.set_approved(approved, today);
                         }
                         if let Some(date) = approval.approved.as_mut() {
-                            date_field(ui, date, &format!("approved-{}", month.key()), &format!("Date approved, {label}"));
+                            date_field(
+                                ui,
+                                date,
+                                &format!("approved-{}", month.key()),
+                                &format!("Date approved, {label}"),
+                            );
                         } else if let ApprovalStatus::Awaiting { days, late } = status {
                             let ago = match days {
                                 0 => "Sent today".to_owned(),
                                 1 => "Sent 1 day ago".to_owned(),
                                 n => format!("Sent {n} days ago"),
                             };
-                            let (tail, color) = if late { ("time to follow up", WARN) } else { ("waiting for reply", INK2) };
-                            text(ui, format!("{ago} · {tail}"), sans(13.0, W::SemiBold), color);
+                            let (tail, color) = if late {
+                                ("time to follow up", WARN)
+                            } else {
+                                ("waiting for reply", INK2)
+                            };
+                            text(
+                                ui,
+                                format!("{ago} · {tail}"),
+                                sans(13.0, W::SemiBold),
+                                color,
+                            );
                         }
                     }
                     _ => {
@@ -1244,7 +1716,9 @@ impl App {
                 else {
                     return false;
                 };
-                self.store.attach_signed_pdf(month, &path, self.today).map_err(|e| format!("Could not attach {}: {e}", path.display()))
+                self.store
+                    .attach_signed_pdf(month, &path, self.today)
+                    .map_err(|e| format!("Could not attach {}: {e}", path.display()))
             }
             MonthAction::Open => {
                 let path = self.store.signed_pdf_path(month);
@@ -1253,7 +1727,10 @@ impl App {
                 }
                 return false;
             }
-            MonthAction::Remove => self.store.remove_signed_pdf(month).map_err(|e| format!("Could not remove the signed PDF: {e}")),
+            MonthAction::Remove => self
+                .store
+                .remove_signed_pdf(month)
+                .map_err(|e| format!("Could not remove the signed PDF: {e}")),
         };
         match result {
             Ok(()) => true,
@@ -1269,61 +1746,77 @@ impl App {
 
     /// Returns true when settings were saved.
     fn settings_modal(&mut self, ctx: &egui::Context) -> bool {
-        let Some(draft) = self.settings_draft.as_mut() else { return false };
+        let Some(draft) = self.settings_draft.as_mut() else {
+            return false;
+        };
         let mut save = false;
         let mut cancel = false;
         let mut export = false;
         let mut import = false;
-        let frame = Frame::new().fill(WHITE).corner_radius(14).inner_margin(Margin::same(24)).stroke(Stroke::new(1.0, BORDER));
-        let modal = egui::Modal::new(Id::new("settings")).frame(frame).show(ctx, |ui| {
-            ui.set_width(440.0);
-            ui.spacing_mut().item_spacing.y = 6.0;
-            text(ui, "Settings", sans(20.0, W::Bold), INK);
-            text(ui, "Shown in the app header and on both PDF exports.", sans(14.0, W::Regular), MUTED);
-            ui.add_space(10.0);
-            for (label, value, hint) in [
-                ("Consultant name", &mut draft.consultant, "e.g. Jane Doe"),
-                ("Client name", &mut draft.client, "e.g. Acme Corp"),
-                ("Project name", &mut draft.project, "e.g. Website redesign"),
-            ] {
-                text(ui, label, sans(14.0, W::SemiBold), INK2);
-                ui.add(
-                    TextEdit::singleline(value)
-                        .hint_text(hint)
-                        .font(sans(15.0, W::Regular))
-                        .text_color(INK)
-                        .margin(Margin::symmetric(12, 0))
-                        .vertical_align(Align::Center)
-                        .min_size(vec2(0.0, 44.0))
-                        .desired_width(f32::INFINITY),
+        let frame = Frame::new()
+            .fill(WHITE)
+            .corner_radius(14)
+            .inner_margin(Margin::same(24))
+            .stroke(Stroke::new(1.0, BORDER));
+        let modal = egui::Modal::new(Id::new("settings"))
+            .frame(frame)
+            .show(ctx, |ui| {
+                ui.set_width(440.0);
+                ui.spacing_mut().item_spacing.y = 6.0;
+                text(ui, "Settings", sans(20.0, W::Bold), INK);
+                text(
+                    ui,
+                    "Shown in the app header and on both PDF exports.",
+                    sans(14.0, W::Regular),
+                    MUTED,
                 );
-                ui.add_space(8.0);
-            }
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(format!("Data is saved automatically in {}", self.data_path.display()))
+                ui.add_space(10.0);
+                for (label, value, hint) in [
+                    ("Consultant name", &mut draft.consultant, "e.g. Jane Doe"),
+                    ("Client name", &mut draft.client, "e.g. Acme Corp"),
+                    ("Project name", &mut draft.project, "e.g. Website redesign"),
+                ] {
+                    text(ui, label, sans(14.0, W::SemiBold), INK2);
+                    ui.add(
+                        TextEdit::singleline(value)
+                            .hint_text(hint)
+                            .font(sans(15.0, W::Regular))
+                            .text_color(INK)
+                            .margin(Margin::symmetric(12, 0))
+                            .vertical_align(Align::Center)
+                            .min_size(vec2(0.0, 44.0))
+                            .desired_width(f32::INFINITY),
+                    );
+                    ui.add_space(8.0);
+                }
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(format!(
+                            "Data is saved automatically in {}",
+                            self.data_path.display()
+                        ))
                         .font(sans(13.0, W::Regular))
                         .color(MUTED),
-                )
-                .wrap(),
-            );
-            ui.horizontal(|ui| {
-                export = Btn::outline("Export data…").show(ui).clicked();
-                import = Btn::outline("Import data…").show(ui).clicked();
-            });
-            if let Some(note) = &self.backup_note {
-                note_ui(ui, note);
-            }
-            ui.add_space(10.0);
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if Btn::primary("Save").min(96.0, 44.0).show(ui).clicked() {
-                    save = true;
+                    )
+                    .wrap(),
+                );
+                ui.horizontal(|ui| {
+                    export = Btn::outline("Export data…").show(ui).clicked();
+                    import = Btn::outline("Import data…").show(ui).clicked();
+                });
+                if let Some(note) = &self.backup_note {
+                    note_ui(ui, note);
                 }
-                if Btn::outline("Cancel").show(ui).clicked() {
-                    cancel = true;
-                }
+                ui.add_space(10.0);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if Btn::primary("Save").min(96.0, 44.0).show(ui).clicked() {
+                        save = true;
+                    }
+                    if Btn::outline("Cancel").show(ui).clicked() {
+                        cancel = true;
+                    }
+                });
             });
-        });
         if export {
             self.export_data();
         }
@@ -1350,7 +1843,14 @@ impl App {
 // ---------------------------------------------------------------------------
 // Week chip and day card
 
-fn week_chip(ui: &mut Ui, data: &Data, month: Month, week: &[NaiveDate], selected: bool, width: f32) -> Response {
+fn week_chip(
+    ui: &mut Ui,
+    data: &Data,
+    month: Month,
+    week: &[NaiveDate],
+    selected: bool,
+    width: f32,
+) -> Response {
     let total = data.days_total(week);
     let target = week.len() as f64 * MAX_DAY_HOURS;
     let over = week.iter().any(|&d| data.day_total(d) > MAX_DAY_HOURS);
@@ -1366,7 +1866,14 @@ fn week_chip(ui: &mut Ui, data: &Data, month: Month, week: &[NaiveDate], selecte
     let label = format!("{} {}", month.short_name(), day_range(week, "–"));
 
     let (rect, response) = ui.allocate_exact_size(vec2(width, 64.0), Sense::click());
-    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, selected, format!("{label}, {status}")));
+    response.widget_info(|| {
+        WidgetInfo::selected(
+            WidgetType::Button,
+            true,
+            selected,
+            format!("{label}, {status}"),
+        )
+    });
     let p = ui.painter();
     let (fill, stroke) = if selected {
         (ACCENT_TINT, Stroke::new(2.0, ACCENT))
@@ -1379,15 +1886,38 @@ fn week_chip(ui: &mut Ui, data: &Data, month: Month, week: &[NaiveDate], selecte
     p.rect_stroke(rect, 12, stroke, StrokeKind::Inside);
     focus_ring(ui, &response, rect, 12);
     let inner = rect.shrink2(vec2(14.0, 10.0));
-    p.text(inner.left_top(), Align2::LEFT_TOP, &label, sans(15.0, W::SemiBold), INK);
-    p.text(pos2(inner.right(), inner.top() + 2.0), Align2::RIGHT_TOP, status, sans(12.0, W::SemiBold), status_color);
+    p.text(
+        inner.left_top(),
+        Align2::LEFT_TOP,
+        &label,
+        sans(15.0, W::SemiBold),
+        INK,
+    );
+    p.text(
+        pos2(inner.right(), inner.top() + 2.0),
+        Align2::RIGHT_TOP,
+        status,
+        sans(12.0, W::SemiBold),
+        status_color,
+    );
     let numbers = format!("{}/{}", fmt_hours(total), fmt_hours(target));
-    let numbers_rect = p.text(inner.right_bottom(), Align2::RIGHT_BOTTOM, numbers, mono(13.0, false), INK2);
+    let numbers_rect = p.text(
+        inner.right_bottom(),
+        Align2::RIGHT_BOTTOM,
+        numbers,
+        mono(13.0, false),
+        INK2,
+    );
     let bar_rect = Rect::from_min_max(
         pos2(inner.left(), numbers_rect.center().y - 3.0),
         pos2(numbers_rect.left() - 8.0, numbers_rect.center().y + 3.0),
     );
-    paint_bar(p, bar_rect, BORDER, &[((total / target).min(1.0) as f32, bar_color)]);
+    paint_bar(
+        p,
+        bar_rect,
+        BORDER,
+        &[((total / target).min(1.0) as f32, bar_color)],
+    );
     response.on_hover_cursor(CursorIcon::PointingHand)
 }
 
@@ -1397,11 +1927,28 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
     let total = data.day_total(date);
     let left = MAX_DAY_HOURS - total;
     let over = total > MAX_DAY_HOURS;
-    let next_hint = format!("{} {} h", data.next_kind(date).label(), fmt_hours(left.max(0.0)));
+    let next_hint = format!(
+        "{} {} h",
+        data.next_kind(date).label(),
+        fmt_hours(left.max(0.0))
+    );
     let prev = data.previous_filled_day(date);
-    let indexes: Vec<usize> = data.entries.iter().enumerate().filter(|(_, e)| e.date == date).map(|(i, _)| i).collect();
-    let segments: Vec<(f32, Color32)> =
-        Kind::ALL.iter().map(|&k| ((data.day_kind_total(date, k) / MAX_DAY_HOURS) as f32, kind_color(k))).collect();
+    let indexes: Vec<usize> = data
+        .entries
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.date == date)
+        .map(|(i, _)| i)
+        .collect();
+    let segments: Vec<(f32, Color32)> = Kind::ALL
+        .iter()
+        .map(|&k| {
+            (
+                (data.day_kind_total(date, k) / MAX_DAY_HOURS) as f32,
+                kind_color(k),
+            )
+        })
+        .collect();
     let (status, pill_bg, pill_fg) = if over {
         ("Over 8 h".to_owned(), DANGER_SOFT, DANGER)
     } else if left <= 0.0 {
@@ -1416,45 +1963,75 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
     card(ui, border, Margin::ZERO, |ui| {
         ui.spacing_mut().item_spacing = vec2(12.0, 0.0);
         // Header.
-        Frame::new().inner_margin(Margin::symmetric(20, 14)).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 16.0;
+        Frame::new()
+            .inner_margin(Margin::symmetric(20, 14))
+            .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.set_min_width(140.0);
-                    ui.spacing_mut().item_spacing.x = 5.0;
-                    text(ui, weekday_short(date), sans(17.0, W::Bold), INK);
-                    text(ui, format!("{} {}", Month::of(date).short_name(), date.day()), sans(17.0, W::Medium), MUTED);
-                });
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    pill(ui, &status, pill_bg, pill_fg, sans(13.0, W::SemiBold), vec2(10.0, 4.0), 99);
-                    text(ui, format!("{} / 8 h", fmt_hours(total)), mono(15.0, true), INK);
-                    bar(ui, ui.available_width(), 8.0, &segments);
-                });
-            });
-        });
-        hline(ui, DIVIDER);
-
-        if indexes.is_empty() {
-            Frame::new().inner_margin(Margin::symmetric(20, 18)).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    text(ui, "No time recorded yet.", sans(15.0, W::Regular), MUTED);
+                    ui.spacing_mut().item_spacing.x = 16.0;
+                    ui.horizontal(|ui| {
+                        ui.set_min_width(140.0);
+                        ui.spacing_mut().item_spacing.x = 5.0;
+                        text(ui, weekday_short(date), sans(17.0, W::Bold), INK);
+                        text(
+                            ui,
+                            format!("{} {}", Month::of(date).short_name(), date.day()),
+                            sans(17.0, W::Medium),
+                            MUTED,
+                        );
+                    });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if Btn::primary(&format!("Add line · {next_hint}")).show(ui).clicked() {
-                            actions.push(Action::Add(date));
-                        }
-                        if let Some(from) = prev {
-                            let name = if Month::of(from) == Month::of(date) {
-                                format!("{} {}", weekday_short(from), from.day())
-                            } else {
-                                format!("{} {} {}", weekday_short(from), Month::of(from).short_name(), from.day())
-                            };
-                            if Btn::outline(&format!("Copy {name}")).show(ui).clicked() {
-                                actions.push(Action::Copy { from, to: date });
-                            }
-                        }
+                        pill(
+                            ui,
+                            &status,
+                            pill_bg,
+                            pill_fg,
+                            sans(13.0, W::SemiBold),
+                            vec2(10.0, 4.0),
+                            99,
+                        );
+                        text(
+                            ui,
+                            format!("{} / 8 h", fmt_hours(total)),
+                            mono(15.0, true),
+                            INK,
+                        );
+                        bar(ui, ui.available_width(), 8.0, &segments);
                     });
                 });
             });
+        hline(ui, DIVIDER);
+
+        if indexes.is_empty() {
+            Frame::new()
+                .inner_margin(Margin::symmetric(20, 18))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        text(ui, "No time recorded yet.", sans(15.0, W::Regular), MUTED);
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if Btn::primary(&format!("Add line · {next_hint}"))
+                                .show(ui)
+                                .clicked()
+                            {
+                                actions.push(Action::Add(date));
+                            }
+                            if let Some(from) = prev {
+                                let name = if Month::of(from) == Month::of(date) {
+                                    format!("{} {}", weekday_short(from), from.day())
+                                } else {
+                                    format!(
+                                        "{} {} {}",
+                                        weekday_short(from),
+                                        Month::of(from).short_name(),
+                                        from.day()
+                                    )
+                                };
+                                if Btn::outline(&format!("Copy {name}")).show(ui).clicked() {
+                                    actions.push(Action::Copy { from, to: date });
+                                }
+                            }
+                        });
+                    });
+                });
             return;
         }
 
@@ -1464,107 +2041,153 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
             }
             let line_no = k + 1;
             let entry = &mut data.entries[i];
-            Frame::new().inner_margin(Margin { left: 20, right: 12, top: 10, bottom: 10 }).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    // Task type toggle.
-                    Frame::new().fill(CHIP).corner_radius(10).inner_margin(Margin::same(3)).show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 0.0;
-                            for kind in Kind::ALL {
-                                let on = entry.kind == kind;
-                                let mut b = Btn::base(kind.label()).min(0.0, 38.0).font(sans(14.0, if on { W::SemiBold } else { W::Medium }));
-                                b.pad = 12.0;
-                                b.radius = 8;
-                                b.a11y = Some(format!("{}, {day_name} line {line_no}", kind.label()));
-                                if on {
-                                    b.fill = kind_toggle_fill(kind);
-                                    b.hover_fill = b.fill;
-                                    b.fg = WHITE;
-                                } else {
-                                    b.hover_fill = BORDER;
-                                    b.fg = INK2;
-                                }
-                                if b.show(ui).clicked() && !on {
-                                    entry.kind = kind;
-                                    dirty = true;
-                                }
+            Frame::new()
+                .inner_margin(Margin {
+                    left: 20,
+                    right: 12,
+                    top: 10,
+                    bottom: 10,
+                })
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        // Task type toggle.
+                        Frame::new()
+                            .fill(CHIP)
+                            .corner_radius(10)
+                            .inner_margin(Margin::same(3))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 0.0;
+                                    for kind in Kind::ALL {
+                                        let on = entry.kind == kind;
+                                        let mut b = Btn::base(kind.label()).min(0.0, 38.0).font(
+                                            sans(14.0, if on { W::SemiBold } else { W::Medium }),
+                                        );
+                                        b.pad = 12.0;
+                                        b.radius = 8;
+                                        b.a11y = Some(format!(
+                                            "{}, {day_name} line {line_no}",
+                                            kind.label()
+                                        ));
+                                        if on {
+                                            b.fill = kind_toggle_fill(kind);
+                                            b.hover_fill = b.fill;
+                                            b.fg = WHITE;
+                                        } else {
+                                            b.hover_fill = BORDER;
+                                            b.fg = INK2;
+                                        }
+                                        if b.show(ui).clicked() && !on {
+                                            entry.kind = kind;
+                                            dirty = true;
+                                        }
+                                    }
+                                });
+                            });
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let remove = Btn::base("")
+                                .icon(Icon::Close, 16.0)
+                                .fg(MUTED)
+                                .min(44.0, 44.0)
+                                .a11y(format!("Remove {day_name} line {line_no}"))
+                                .show(ui);
+                            if remove.clicked() {
+                                actions.push(Action::Remove(entry.id));
                             }
-                        });
-                    });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let remove = Btn::base("")
-                            .icon(Icon::Close, 16.0)
-                            .fg(MUTED)
-                            .min(44.0, 44.0)
-                            .a11y(format!("Remove {day_name} line {line_no}"))
-                            .show(ui);
-                        if remove.clicked() {
-                            actions.push(Action::Remove(entry.id));
-                        }
-                        ui.spacing_mut().item_spacing.x = 6.0;
-                        text(ui, "h", sans(15.0, W::Regular), MUTED);
-                        ui.scope(|ui| {
-                            if over {
-                                let widgets = &mut ui.visuals_mut().widgets;
-                                widgets.inactive.bg_stroke = Stroke::new(1.0, DANGER);
-                                widgets.hovered.bg_stroke = Stroke::new(1.0, DANGER);
-                            }
-                            let hours = ui.add(
-                                TextEdit::singleline(&mut entry.hours)
-                                    .id_salt(("hours", entry.id))
-                                    .font(mono(15.0, false))
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            text(ui, "h", sans(15.0, W::Regular), MUTED);
+                            ui.scope(|ui| {
+                                if over {
+                                    let widgets = &mut ui.visuals_mut().widgets;
+                                    widgets.inactive.bg_stroke = Stroke::new(1.0, DANGER);
+                                    widgets.hovered.bg_stroke = Stroke::new(1.0, DANGER);
+                                }
+                                let hours = ui.add(
+                                    TextEdit::singleline(&mut entry.hours)
+                                        .id_salt(("hours", entry.id))
+                                        .font(mono(15.0, false))
+                                        .text_color(INK)
+                                        .horizontal_align(Align::RIGHT)
+                                        .vertical_align(Align::Center)
+                                        .margin(Margin {
+                                            left: 12,
+                                            right: 8,
+                                            top: 0,
+                                            bottom: 0,
+                                        })
+                                        .min_size(vec2(76.0, 44.0))
+                                        .desired_width(56.0)
+                                        .char_limit(5),
+                                );
+                                hours.widget_info(|| {
+                                    WidgetInfo::labeled(
+                                        WidgetType::TextEdit,
+                                        true,
+                                        format!("Hours, {day_name} line {line_no}"),
+                                    )
+                                });
+                                dirty |= hours.changed();
+                            });
+                            ui.spacing_mut().item_spacing.x = 12.0;
+                            let desc = ui.add(
+                                TextEdit::singleline(&mut entry.desc)
+                                    .id_salt(("desc", entry.id))
+                                    .hint_text("What did you do? e.g. ticket #1234")
+                                    .font(sans(15.0, W::Regular))
                                     .text_color(INK)
-                                    .horizontal_align(Align::RIGHT)
                                     .vertical_align(Align::Center)
-                                    .margin(Margin { left: 12, right: 8, top: 0, bottom: 0 })
-                                    .min_size(vec2(76.0, 44.0))
-                                    .desired_width(56.0)
-                                    .char_limit(5),
+                                    .margin(Margin::symmetric(12, 0))
+                                    .min_size(vec2(0.0, 44.0))
+                                    .desired_width(ui.available_width()),
                             );
-                            hours.widget_info(|| WidgetInfo::labeled(WidgetType::TextEdit, true, format!("Hours, {day_name} line {line_no}")));
-                            dirty |= hours.changed();
+                            desc.widget_info(|| {
+                                WidgetInfo::labeled(
+                                    WidgetType::TextEdit,
+                                    true,
+                                    format!("Description, {day_name} line {line_no}"),
+                                )
+                            });
+                            dirty |= desc.changed();
                         });
-                        ui.spacing_mut().item_spacing.x = 12.0;
-                        let desc = ui.add(
-                            TextEdit::singleline(&mut entry.desc)
-                                .id_salt(("desc", entry.id))
-                                .hint_text("What did you do? e.g. ticket #1234")
-                                .font(sans(15.0, W::Regular))
-                                .text_color(INK)
-                                .vertical_align(Align::Center)
-                                .margin(Margin::symmetric(12, 0))
-                                .min_size(vec2(0.0, 44.0))
-                                .desired_width(ui.available_width()),
-                        );
-                        desc.widget_info(|| WidgetInfo::labeled(WidgetType::TextEdit, true, format!("Description, {day_name} line {line_no}")));
-                        dirty |= desc.changed();
                     });
                 });
-            });
         }
 
         // Footer, only when it has something to show.
         if left <= 0.0 && !over {
             return;
         }
-        Frame::new().inner_margin(Margin { left: 20, right: 20, top: 10, bottom: 14 }).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                if left > 0.0 {
-                    let label = format!("Add line · {next_hint}");
-                    let mut b = Btn::base(&label).icon(Icon::Plus, 16.0).fg(ACCENT).font(sans(15.0, W::SemiBold));
-                    b.dashed = true;
-                    b.pad = 14.0;
-                    b.hover_fill = ACCENT_TINT;
-                    if b.show(ui).clicked() {
-                        actions.push(Action::Add(date));
+        Frame::new()
+            .inner_margin(Margin {
+                left: 20,
+                right: 20,
+                top: 10,
+                bottom: 14,
+            })
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if left > 0.0 {
+                        let label = format!("Add line · {next_hint}");
+                        let mut b = Btn::base(&label)
+                            .icon(Icon::Plus, 16.0)
+                            .fg(ACCENT)
+                            .font(sans(15.0, W::SemiBold));
+                        b.dashed = true;
+                        b.pad = 14.0;
+                        b.hover_fill = ACCENT_TINT;
+                        if b.show(ui).clicked() {
+                            actions.push(Action::Add(date));
+                        }
                     }
-                }
-                if over {
-                    let msg = format!("A day cannot exceed 8 h. Remove {} h.", fmt_hours(total - MAX_DAY_HOURS));
-                    text(ui, msg, sans(15.0, W::SemiBold), DANGER);
-                }
+                    if over {
+                        let msg = format!(
+                            "A day cannot exceed 8 h. Remove {} h.",
+                            fmt_hours(total - MAX_DAY_HOURS)
+                        );
+                        text(ui, msg, sans(15.0, W::SemiBold), DANGER);
+                    }
+                });
             });
-        });
     });
     dirty
 }
@@ -1575,7 +2198,12 @@ fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Opti
         .fill(OK_TINT)
         .stroke(Stroke::new(1.0, OK_BORDER))
         .corner_radius(10)
-        .inner_margin(Margin { left: 12, right: 6, top: 6, bottom: 6 });
+        .inner_margin(Margin {
+            left: 12,
+            right: 6,
+            top: 6,
+            bottom: 6,
+        });
     frame.show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
@@ -1584,16 +2212,28 @@ fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Opti
             Icon::FileCheck.paint(ui.painter(), rect.center(), 18.0, OK_FG, 2.0);
             // Leaves room for the item spacing before the name and the remove button.
             let name_w = (ui.available_width() - 8.0 - 8.0 - 36.0).max(0.0);
-            ui.allocate_ui_with_layout(vec2(name_w, 36.0), Layout::left_to_right(Align::Center), |ui| {
-                ui.set_width(name_w);
-                let rich = egui::RichText::new(name).font(sans(14.0, W::SemiBold)).color(OK_FG);
-                let link = ui.add(egui::Label::new(rich).truncate().sense(Sense::click()));
-                link.widget_info(|| WidgetInfo::labeled(WidgetType::Link, true, format!("Open {name}")));
-                if link.on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                    *action = Some(MonthAction::Open);
-                }
-            });
-            let mut b = Btn::base("").icon(Icon::Close, 14.0).fg(INK2).min(36.0, 36.0).a11y(format!("Remove signed PDF for {month_label}"));
+            ui.allocate_ui_with_layout(
+                vec2(name_w, 36.0),
+                Layout::left_to_right(Align::Center),
+                |ui| {
+                    ui.set_width(name_w);
+                    let rich = egui::RichText::new(name)
+                        .font(sans(14.0, W::SemiBold))
+                        .color(OK_FG);
+                    let link = ui.add(egui::Label::new(rich).truncate().sense(Sense::click()));
+                    link.widget_info(|| {
+                        WidgetInfo::labeled(WidgetType::Link, true, format!("Open {name}"))
+                    });
+                    if link.on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                        *action = Some(MonthAction::Open);
+                    }
+                },
+            );
+            let mut b = Btn::base("")
+                .icon(Icon::Close, 14.0)
+                .fg(INK2)
+                .min(36.0, 36.0)
+                .a11y(format!("Remove signed PDF for {month_label}"));
             b.radius = 8;
             b.pad = 0.0;
             if b.show(ui).clicked() {
