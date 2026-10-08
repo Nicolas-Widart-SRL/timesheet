@@ -23,6 +23,7 @@ cargo run --release          # run
 cargo build --release        # binary in target/release/timesheet(.exe)
 cargo test                   # unit tests
 cargo test -- --ignored      # writes sample October PDFs to target/
+cargo fmt                    # format; CI fails on `cargo fmt --check`
 ```
 
 Build the Windows `.exe` on a Windows machine with the same commands (MSVC toolchain).
