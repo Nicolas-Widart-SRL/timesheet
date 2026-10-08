@@ -63,15 +63,15 @@ scripts/release.sh
 
 The script picks the next version from the commits since the last tag (`feat` bumps the minor version,
 `fix` the patch version), prepends its section to `CHANGELOG.md`, sets the version in `Cargo.toml` and
-`Cargo.lock`, and commits `chore(release): vX.Y.Z` on a `release/vX.Y.Z` branch. Edit the changelog
+`Cargo.lock`, and commits `chore(release): v<version>` on a `release/v<version>` branch. Edit the changelog
 section if needed, open a pull request, and after merging push the tag it prints:
 
 ```sh
-git switch main && git pull && git tag -a v0.2.0 -m v0.2.0 && git push origin v0.2.0
+git switch main && git pull && git tag -a v<version> -m v<version> && git push origin v<version>
 ```
 
-The workflow then attaches `Timesheet-v0.2.0-macos-universal.dmg` (Apple silicon and Intel) and
-`Timesheet-v0.2.0-windows-x64.exe` to a new GitHub release, with that version's `CHANGELOG.md` section as
+The workflow then attaches `Timesheet-v<version>-macos-universal.dmg` (Apple silicon and Intel) and
+`Timesheet-v<version>-windows-x64.exe` to a new GitHub release, with that version's `CHANGELOG.md` section as
 release notes. It fails if the tag does not match the `Cargo.toml` version or the changelog has no section for it.
 
 ## Data
