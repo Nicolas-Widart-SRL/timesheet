@@ -12,6 +12,8 @@ category = "public.app-category.productivity"
 chrono = { version = "0.4", features = ["serde"] }
 directories = "6"
 eframe = "0.36"
+egui_extras = { version = "0.36", default-features = false, features = ["datepicker"] }
+jiff = { version = "0.2", default-features = false, features = ["std"] }
 krilla = "0.8"
 rfd = "0.17"
 serde = { version = "1", features = ["derive"] }

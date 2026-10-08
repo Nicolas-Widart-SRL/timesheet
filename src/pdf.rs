@@ -538,7 +538,7 @@ mod sample {
             })
             .collect();
         let settings = Settings { consultant: String::new(), client: String::new(), project: "Website redesign".into() };
-        Data { settings, entries, next_id: LINES.len() as u64 }
+        Data { settings, entries, next_id: LINES.len() as u64, ..Default::default() }
     }
 
     #[test]
