@@ -1,0 +1,449 @@
+//! Timesheet data, month calendar and aggregation rules shared by the UI and the PDF exports.
+
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+
+use chrono::{Datelike, Duration, NaiveDate, Weekday};
+use serde::{Deserialize, Serialize};
+
+/// A day cannot hold more than this many hours.
+pub const MAX_DAY_HOURS: f64 = 8.0;
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    Frontend,
+    Backend,
+    Support,
+}
+
+impl Kind {
+    pub const ALL: [Kind; 3] = [Kind::Frontend, Kind::Backend, Kind::Support];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Kind::Frontend => "Frontend",
+            Kind::Backend => "Backend",
+            Kind::Support => "Support",
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Entry {
+    pub id: u64,
+    pub date: NaiveDate,
+    pub kind: Kind,
+    pub desc: String,
+    /// Raw text typed by the user; parsed with [`parse_hours`].
+    pub hours: String,
+}
+
+impl Entry {
+    pub fn hours(&self) -> f64 {
+        parse_hours(&self.hours)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct Settings {
+    pub consultant: String,
+    pub client: String,
+    pub project: String,
+}
+
+impl Settings {
+    pub fn consultant_or_placeholder(&self) -> &str {
+        non_empty_or(&self.consultant, "[YOUR NAME]")
+    }
+    pub fn client_or_placeholder(&self) -> &str {
+        non_empty_or(&self.client, "[CLIENT NAME]")
+    }
+    pub fn project_or_placeholder(&self) -> &str {
+        non_empty_or(&self.project, "[PROJECT NAME]")
+    }
+
+    /// Up to two initials from the consultant name, e.g. "Jane Doe" -> "JD".
+    pub fn initials(&self) -> String {
+        self.consultant_or_placeholder()
+            .split_whitespace()
+            .filter_map(|w| w.chars().find(|c| c.is_alphanumeric()))
+            .take(2)
+            .flat_map(char::to_uppercase)
+            .collect()
+    }
+}
+
+fn non_empty_or<'a>(value: &'a str, placeholder: &'a str) -> &'a str {
+    if value.trim().is_empty() { placeholder } else { value.trim() }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct Data {
+    pub settings: Settings,
+    pub entries: Vec<Entry>,
+    pub next_id: u64,
+}
+
+impl Data {
+    pub fn lines(&self, date: NaiveDate) -> impl Iterator<Item = &Entry> {
+        self.entries.iter().filter(move |e| e.date == date)
+    }
+
+    pub fn day_total(&self, date: NaiveDate) -> f64 {
+        self.lines(date).map(Entry::hours).sum()
+    }
+
+    pub fn day_kind_total(&self, date: NaiveDate, kind: Kind) -> f64 {
+        self.lines(date).filter(|e| e.kind == kind).map(Entry::hours).sum()
+    }
+
+    pub fn kind_total(&self, month: Month, kind: Kind) -> f64 {
+        month.weekdays().iter().map(|&d| self.day_kind_total(d, kind)).sum()
+    }
+
+    pub fn month_total(&self, month: Month) -> f64 {
+        month.weekdays().iter().map(|&d| self.day_total(d)).sum()
+    }
+
+    /// Latest date before `date` that has at least one line.
+    pub fn previous_filled_day(&self, date: NaiveDate) -> Option<NaiveDate> {
+        self.entries.iter().map(|e| e.date).filter(|&d| d < date).max()
+    }
+
+    /// Task type proposed for a new line: the last one used on this day or the closest earlier day.
+    pub fn next_kind(&self, date: NaiveDate) -> Kind {
+        if let Some(e) = self.lines(date).last() {
+            return e.kind;
+        }
+        self.previous_filled_day(date)
+            .and_then(|d| self.lines(d).last())
+            .map_or(Kind::Backend, |e| e.kind)
+    }
+
+    fn take_id(&mut self) -> u64 {
+        let used = self.entries.iter().map(|e| e.id + 1).max().unwrap_or(0);
+        let id = self.next_id.max(used);
+        self.next_id = id + 1;
+        id
+    }
+
+    /// Adds a line pre-filled with the proposed type and the hours left in the day.
+    pub fn add_line(&mut self, date: NaiveDate) {
+        let left = (MAX_DAY_HOURS - self.day_total(date)).max(0.0);
+        let entry = Entry {
+            id: self.take_id(),
+            date,
+            kind: self.next_kind(date),
+            desc: String::new(),
+            hours: if left > 0.0 { fmt_hours(left) } else { String::new() },
+        };
+        self.entries.push(entry);
+    }
+
+    pub fn copy_day(&mut self, from: NaiveDate, to: NaiveDate) {
+        let copies: Vec<Entry> = self.lines(from).cloned().collect();
+        for mut e in copies {
+            e.id = self.take_id();
+            e.date = to;
+            self.entries.push(e);
+        }
+    }
+
+    pub fn remove_line(&mut self, id: u64) {
+        self.entries.retain(|e| e.id != id);
+    }
+
+    /// Months that hold at least one line, newest first.
+    pub fn months_with_entries(&self) -> Vec<Month> {
+        let mut months: Vec<Month> = self.entries.iter().map(|e| Month::of(e.date)).collect();
+        months.sort();
+        months.dedup();
+        months.reverse();
+        months
+    }
+}
+
+/// Lenient hour parsing: accepts "7,5" and treats invalid or negative input as 0.
+pub fn parse_hours(text: &str) -> f64 {
+    let value = text.trim().replace(',', ".").parse::<f64>().unwrap_or(0.0);
+    if value.is_finite() { value.max(0.0) } else { 0.0 }
+}
+
+/// Compact hours for the UI: "8", "1.5", "0.25".
+pub fn fmt_hours(n: f64) -> String {
+    // `+ 0.0` turns -0.0 (the sum of an empty iterator) into 0.0.
+    format!("{}", (n * 100.0).round() / 100.0 + 0.0)
+}
+
+/// Fixed one-decimal hours for reports: "8.0", "1.5"; keeps a second decimal only when needed.
+pub fn fmt_report(n: f64) -> String {
+    let rounded = (n * 100.0).round() / 100.0 + 0.0;
+    if ((rounded * 10.0).round() - rounded * 10.0).abs() < 1e-9 {
+        format!("{rounded:.1}")
+    } else {
+        format!("{rounded:.2}")
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct Month {
+    pub year: i32,
+    pub month: u32,
+}
+
+const MONTH_NAMES: [&str; 12] = [
+    "January", "February", "March", "April", "May", "June", "July", "August", "September",
+    "October", "November", "December",
+];
+
+impl Month {
+    pub fn of(date: NaiveDate) -> Self {
+        Month { year: date.year(), month: date.month() }
+    }
+
+    pub fn first_day(self) -> NaiveDate {
+        NaiveDate::from_ymd_opt(self.year, self.month, 1).expect("valid month")
+    }
+
+    pub fn next(self) -> Self {
+        if self.month == 12 { Month { year: self.year + 1, month: 1 } } else { Month { month: self.month + 1, ..self } }
+    }
+
+    pub fn prev(self) -> Self {
+        if self.month == 1 { Month { year: self.year - 1, month: 12 } } else { Month { month: self.month - 1, ..self } }
+    }
+
+    pub fn name(self) -> &'static str {
+        MONTH_NAMES[self.month as usize - 1]
+    }
+
+    pub fn short_name(self) -> &'static str {
+        &self.name()[..3]
+    }
+
+    /// "October 2026"
+    pub fn label(self) -> String {
+        format!("{} {}", self.name(), self.year)
+    }
+
+    /// Monday to Friday dates of the month.
+    pub fn weekdays(self) -> Vec<NaiveDate> {
+        let next_first = self.next().first_day();
+        let mut days = Vec::new();
+        let mut d = self.first_day();
+        while d < next_first {
+            if !matches!(d.weekday(), Weekday::Sat | Weekday::Sun) {
+                days.push(d);
+            }
+            d += Duration::days(1);
+        }
+        days
+    }
+
+    /// Weekdays grouped into calendar weeks (a new week starts on Monday).
+    pub fn weeks(self) -> Vec<Vec<NaiveDate>> {
+        let mut weeks: Vec<Vec<NaiveDate>> = Vec::new();
+        for d in self.weekdays() {
+            match weeks.last_mut() {
+                Some(week) if d.weekday() != Weekday::Mon => week.push(d),
+                _ => weeks.push(vec![d]),
+            }
+        }
+        weeks
+    }
+
+    pub fn target_hours(self) -> f64 {
+        self.weekdays().len() as f64 * MAX_DAY_HOURS
+    }
+
+    /// "Oct 1 – 30, 2026": first to last weekday.
+    pub fn period_label(self) -> String {
+        let days = self.weekdays();
+        format!("{} {}, {}", self.short_name(), day_range(&days, " – "), self.year)
+    }
+}
+
+/// "1 – 2" for a range, "30" for a single day.
+pub fn day_range(days: &[NaiveDate], separator: &str) -> String {
+    match (days.first(), days.last()) {
+        (Some(a), Some(b)) if a != b => format!("{}{separator}{}", a.day(), b.day()),
+        (Some(a), _) => a.day().to_string(),
+        _ => String::new(),
+    }
+}
+
+pub fn weekday_short(date: NaiveDate) -> &'static str {
+    match date.weekday() {
+        Weekday::Mon => "Mon",
+        Weekday::Tue => "Tue",
+        Weekday::Wed => "Wed",
+        Weekday::Thu => "Thu",
+        Weekday::Fri => "Fri",
+        Weekday::Sat => "Sat",
+        Weekday::Sun => "Sun",
+    }
+}
+
+pub fn weekday_long(date: NaiveDate) -> &'static str {
+    match date.weekday() {
+        Weekday::Mon => "Monday",
+        Weekday::Tue => "Tuesday",
+        Weekday::Wed => "Wednesday",
+        Weekday::Thu => "Thursday",
+        Weekday::Fri => "Friday",
+        Weekday::Sat => "Saturday",
+        Weekday::Sun => "Sunday",
+    }
+}
+
+/// JSON file holding all data, written atomically after every change.
+pub struct Store {
+    path: PathBuf,
+    pub data: Data,
+}
+
+impl Store {
+    /// Loads the store. An unreadable file is moved aside (never overwritten) and a warning is returned.
+    pub fn open(path: PathBuf) -> (Self, Option<String>) {
+        let mut warning = None;
+        let data = match fs::read(&path) {
+            Ok(bytes) => match serde_json::from_slice(&bytes) {
+                Ok(data) => data,
+                Err(err) => {
+                    let backup = path.with_extension(format!("corrupt-{}.json", chrono::Local::now().format("%Y%m%d-%H%M%S")));
+                    warning = Some(match fs::rename(&path, &backup) {
+                        Ok(()) => format!("Saved data could not be read ({err}). It was moved to {}.", backup.display()),
+                        Err(e) => format!("Saved data could not be read ({err}) nor moved aside ({e})."),
+                    });
+                    Data::default()
+                }
+            },
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Data::default(),
+            Err(e) => {
+                warning = Some(format!("Could not read {}: {e}", path.display()));
+                Data::default()
+            }
+        };
+        (Store { path, data }, warning)
+    }
+
+    pub fn save(&self) -> io::Result<()> {
+        if let Some(dir) = self.path.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        let json = serde_json::to_vec_pretty(&self.data).map_err(io::Error::other)?;
+        write_atomic(&self.path, &json)
+    }
+}
+
+/// Writes to a sibling temp file, then renames over the target so a crash never leaves a half-written file.
+pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, bytes)?;
+    fs::rename(&tmp, path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn d(day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 10, day).unwrap()
+    }
+
+    fn entry(id: u64, day: u32, kind: Kind, hours: &str) -> Entry {
+        Entry { id, date: d(day), kind, desc: String::new(), hours: hours.into() }
+    }
+
+    #[test]
+    fn october_2026_calendar() {
+        let oct = Month { year: 2026, month: 10 };
+        assert_eq!(oct.weekdays().len(), 22);
+        assert_eq!(oct.target_hours(), 176.0);
+        assert_eq!(oct.period_label(), "Oct 1 – 30, 2026");
+        let weeks = oct.weeks();
+        assert_eq!(weeks.len(), 5);
+        assert_eq!(day_range(&weeks[0], "–"), "1–2");
+        assert_eq!(day_range(&weeks[4], " – "), "26 – 30");
+        assert_eq!(oct.next(), Month { year: 2026, month: 11 });
+        assert_eq!(Month { year: 2026, month: 1 }.prev(), Month { year: 2025, month: 12 });
+    }
+
+    #[test]
+    fn month_starting_on_weekend() {
+        let nov = Month { year: 2026, month: 11 };
+        assert_eq!(nov.weekdays()[0], NaiveDate::from_ymd_opt(2026, 11, 2).unwrap());
+        assert_eq!(nov.period_label(), "Nov 2 – 30, 2026");
+    }
+
+    #[test]
+    fn hours_parsing_and_format() {
+        assert_eq!(parse_hours("7,5"), 7.5);
+        assert_eq!(parse_hours(" 3 "), 3.0);
+        assert_eq!(parse_hours("abc"), 0.0);
+        assert_eq!(parse_hours("-2"), 0.0);
+        assert_eq!(parse_hours("NaN"), 0.0);
+        assert_eq!(fmt_hours(8.0), "8");
+        assert_eq!(fmt_hours(std::iter::empty::<f64>().sum()), "0");
+        assert_eq!(fmt_report(-0.0), "0.0");
+        assert_eq!(fmt_hours(1.5), "1.5");
+        assert_eq!(fmt_report(8.0), "8.0");
+        assert_eq!(fmt_report(176.0), "176.0");
+        assert_eq!(fmt_report(0.25), "0.25");
+    }
+
+    #[test]
+    fn add_copy_and_totals() {
+        let mut data = Data {
+            entries: vec![entry(0, 1, Kind::Backend, "5"), entry(1, 1, Kind::Support, "1.5")],
+            next_id: 2,
+            ..Default::default()
+        };
+        assert_eq!(data.day_total(d(1)), 6.5);
+        data.add_line(d(1));
+        let added = data.entries.last().unwrap();
+        assert_eq!((added.kind, added.hours.as_str()), (Kind::Support, "1.5"));
+
+        data.add_line(d(2));
+        let added = data.entries.last().unwrap();
+        assert_eq!((added.kind, added.hours.as_str()), (Kind::Support, "8"));
+
+        data.copy_day(d(1), d(5));
+        assert_eq!(data.day_total(d(5)), 8.0);
+        let ids: std::collections::HashSet<u64> = data.entries.iter().map(|e| e.id).collect();
+        assert_eq!(ids.len(), data.entries.len());
+
+        let oct = Month { year: 2026, month: 10 };
+        assert_eq!(data.kind_total(oct, Kind::Support), 1.5 + 1.5 + 8.0 + 1.5 + 1.5);
+        assert_eq!(data.previous_filled_day(d(5)), Some(d(2)));
+        assert_eq!(data.months_with_entries(), vec![oct]);
+    }
+
+    #[test]
+    fn initials() {
+        let mut s = Settings::default();
+        assert_eq!(s.initials(), "YN");
+        s.consultant = "jane van doe".into();
+        assert_eq!(s.initials(), "JV");
+    }
+
+    #[test]
+    fn store_roundtrip_and_corrupt_file_is_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("timesheet.json");
+        let (mut store, warning) = Store::open(path.clone());
+        assert!(warning.is_none());
+        store.data.add_line(d(1));
+        store.save().unwrap();
+        assert_eq!(Store::open(path.clone()).0.data, store.data);
+
+        fs::write(&path, b"{not json").unwrap();
+        let (store, warning) = Store::open(path.clone());
+        assert!(warning.is_some());
+        assert!(store.data.entries.is_empty());
+        let moved = fs::read_dir(dir.path()).unwrap().filter_map(Result::ok).any(|e| e.file_name().to_string_lossy().contains("corrupt"));
+        assert!(moved);
+    }
+}

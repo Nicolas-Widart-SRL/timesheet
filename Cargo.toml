@@ -1,0 +1,27 @@
+[package]
+name = "timesheet"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.bundle]
+name = "Timesheet"
+identifier = "com.nwidart.timesheet"
+category = "public.app-category.productivity"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+directories = "6"
+eframe = "0.36"
+krilla = "0.8"
+rfd = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ttf-parser = "0.25"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
