@@ -1,5 +1,6 @@
 //! Timesheet data, month calendar and aggregation rules shared by the UI and the PDF exports.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -9,6 +10,9 @@ use serde::{Deserialize, Serialize};
 
 /// A day cannot hold more than this many hours.
 pub const MAX_DAY_HOURS: f64 = 8.0;
+
+/// Days without a reply after which a sent month needs a follow-up.
+pub const FOLLOW_UP_DAYS: i64 = 5;
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -79,11 +83,57 @@ fn non_empty_or<'a>(value: &'a str, placeholder: &'a str) -> &'a str {
     if value.trim().is_empty() { placeholder } else { value.trim() }
 }
 
+/// Sending and manager approval of one month's timesheet.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct Approval {
+    pub sent: Option<NaiveDate>,
+    /// Only meaningful while `sent` is set.
+    pub approved: Option<NaiveDate>,
+    /// Original file name of the signed PDF; the copy lives at [`Store::signed_pdf_path`].
+    pub signed_pdf: Option<String>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ApprovalStatus {
+    NotSent,
+    Awaiting { days: i64, late: bool },
+    Approved,
+}
+
+impl Approval {
+    pub fn status(&self, today: NaiveDate) -> ApprovalStatus {
+        match (self.sent, self.approved) {
+            (None, _) => ApprovalStatus::NotSent,
+            (Some(_), Some(_)) => ApprovalStatus::Approved,
+            (Some(sent), None) => {
+                let days = (today - sent).num_days().max(0);
+                ApprovalStatus::Awaiting { days, late: days > FOLLOW_UP_DAYS }
+            }
+        }
+    }
+
+    pub fn set_sent(&mut self, sent: bool, today: NaiveDate) {
+        if sent {
+            self.sent.get_or_insert(today);
+        } else {
+            self.sent = None;
+            self.approved = None;
+        }
+    }
+
+    pub fn set_approved(&mut self, approved: bool, today: NaiveDate) {
+        self.approved = (approved && self.sent.is_some()).then_some(today);
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct Data {
     pub settings: Settings,
     pub entries: Vec<Entry>,
     pub next_id: u64,
+    /// Keyed by [`Month::key`].
+    #[serde(default)]
+    pub approvals: BTreeMap<String, Approval>,
 }
 
 impl Data {
@@ -105,6 +155,19 @@ impl Data {
 
     pub fn month_total(&self, month: Month) -> f64 {
         month.weekdays().iter().map(|&d| self.day_total(d)).sum()
+    }
+
+    /// A month with a day over [`MAX_DAY_HOURS`] cannot be exported.
+    pub fn has_overfull_day(&self, month: Month) -> bool {
+        month.weekdays().iter().any(|&d| self.day_total(d) > MAX_DAY_HOURS)
+    }
+
+    pub fn approval(&self, month: Month) -> Approval {
+        self.approvals.get(&month.key()).cloned().unwrap_or_default()
+    }
+
+    pub fn approval_mut(&mut self, month: Month) -> &mut Approval {
+        self.approvals.entry(month.key()).or_default()
     }
 
     /// Latest date before `date` that has at least one line.
@@ -155,12 +218,15 @@ impl Data {
         self.entries.retain(|e| e.id != id);
     }
 
-    /// Months that hold at least one line, newest first.
-    pub fn months_with_entries(&self) -> Vec<Month> {
-        let mut months: Vec<Month> = self.entries.iter().map(|e| Month::of(e.date)).collect();
-        months.sort();
-        months.dedup();
-        months.reverse();
+    /// Every month before `current`, back to the oldest month holding a line, newest first.
+    pub fn closed_months(&self, current: Month) -> Vec<Month> {
+        let Some(oldest) = self.entries.iter().map(|e| Month::of(e.date)).min() else { return Vec::new() };
+        let mut months = Vec::new();
+        let mut m = current.prev();
+        while m >= oldest {
+            months.push(m);
+            m = m.prev();
+        }
         months
     }
 }
@@ -221,6 +287,11 @@ impl Month {
 
     pub fn short_name(self) -> &'static str {
         &self.name()[..3]
+    }
+
+    /// "2026-10"
+    pub fn key(self) -> String {
+        format!("{}-{:02}", self.year, self.month)
     }
 
     /// "October 2026"
@@ -329,6 +400,35 @@ impl Store {
         (Store { path, data }, warning)
     }
 
+    /// Where the signed PDF of `month` is kept, next to the data file.
+    pub fn signed_pdf_path(&self, month: Month) -> PathBuf {
+        self.path.with_file_name("signed").join(format!("{}.pdf", month.key()))
+    }
+
+    /// Copies `source` into the data folder as the signed PDF of `month`.
+    /// A signed copy means the month was sent and approved, so missing dates are set to `today`.
+    pub fn attach_signed_pdf(&mut self, month: Month, source: &Path, today: NaiveDate) -> io::Result<()> {
+        let target = self.signed_pdf_path(month);
+        if let Some(dir) = target.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        write_atomic(&target, &fs::read(source)?)?;
+        let approval = self.data.approval_mut(month);
+        approval.signed_pdf = Some(source.file_name().map_or_else(|| "signed.pdf".into(), |n| n.to_string_lossy().into_owned()));
+        approval.set_sent(true, today);
+        approval.approved.get_or_insert(today);
+        Ok(())
+    }
+
+    pub fn remove_signed_pdf(&mut self, month: Month) -> io::Result<()> {
+        match fs::remove_file(self.signed_pdf_path(month)) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+            _ => {}
+        }
+        self.data.approval_mut(month).signed_pdf = None;
+        Ok(())
+    }
+
     pub fn save(&self) -> io::Result<()> {
         if let Some(dir) = self.path.parent() {
             fs::create_dir_all(dir)?;
@@ -418,7 +518,49 @@ mod tests {
         let oct = Month { year: 2026, month: 10 };
         assert_eq!(data.kind_total(oct, Kind::Support), 1.5 + 1.5 + 8.0 + 1.5 + 1.5);
         assert_eq!(data.previous_filled_day(d(5)), Some(d(2)));
-        assert_eq!(data.months_with_entries(), vec![oct]);
+        assert_eq!(data.closed_months(oct), vec![]);
+        let jan = Month { year: 2027, month: 1 };
+        assert_eq!(data.closed_months(jan), vec![Month { year: 2026, month: 12 }, Month { year: 2026, month: 11 }, oct]);
+    }
+
+    #[test]
+    fn approval_flow() {
+        let mut a = Approval::default();
+        assert_eq!(a.status(d(8)), ApprovalStatus::NotSent);
+        a.set_approved(true, d(8));
+        assert_eq!(a.approved, None, "cannot approve before sending");
+        a.set_sent(true, d(1));
+        assert_eq!(a.status(d(6)), ApprovalStatus::Awaiting { days: 5, late: false });
+        assert_eq!(a.status(d(7)), ApprovalStatus::Awaiting { days: 6, late: true });
+        a.set_sent(true, d(7));
+        assert_eq!(a.sent, Some(d(1)), "ticking again keeps the date");
+        a.set_approved(true, d(7));
+        assert_eq!(a.status(d(8)), ApprovalStatus::Approved);
+        a.set_sent(false, d(8));
+        assert_eq!((a.sent, a.approved), (None, None));
+    }
+
+    #[test]
+    fn signed_pdf_is_copied_and_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("my-signed.pdf");
+        fs::write(&source, b"%PDF").unwrap();
+        let (mut store, _) = Store::open(dir.path().join("data").join("timesheet.json"));
+        let sep = Month { year: 2026, month: 9 };
+        store.attach_signed_pdf(sep, &source, d(8)).unwrap();
+        let copy = store.signed_pdf_path(sep);
+        assert_eq!(fs::read(&copy).unwrap(), b"%PDF");
+        let a = store.data.approval(sep);
+        assert_eq!((a.sent, a.approved, a.signed_pdf.as_deref()), (Some(d(8)), Some(d(8)), Some("my-signed.pdf")));
+        store.remove_signed_pdf(sep).unwrap();
+        assert!(!copy.exists() && source.exists());
+        assert_eq!(store.data.approval(sep).signed_pdf, None);
+    }
+
+    #[test]
+    fn data_without_approvals_still_loads() {
+        let data: Data = serde_json::from_str(r#"{"settings":{"consultant":"","client":"","project":""},"entries":[],"next_id":0}"#).unwrap();
+        assert!(data.approvals.is_empty());
     }
 
     #[test]

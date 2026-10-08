@@ -1,11 +1,14 @@
 # Timesheet
 
 Native desktop app (Rust, egui) for monthly timesheet entry on a single project, built from the
-mockup in `A · Monthly entry (single project)-html/`. Runs on macOS and Windows.
+mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
 
 - Weekdays only, at most 8 h per day, three task types (Frontend, Backend, Support).
 - Exports two PDFs per month: **Detailed report** (every line, grouped by week) and
   **Daily summary** (hours per type per weekday).
+- **Past months** tracks each closed month: export both PDFs, tick when sent to and approved by
+  your manager (with dates), and attach the signed PDF. A month waiting more than 5 days for a
+  reply is flagged for follow-up.
 - Consultant, client and project names are set in Settings (click the avatar).
 
 ## Build and run
@@ -55,6 +58,8 @@ All data is saved automatically after each change, as JSON:
 
 - macOS: `~/Library/Application Support/Timesheet/timesheet.json`
 - Windows: `%APPDATA%\Timesheet\data\timesheet.json`
+
+Signed PDFs are copied next to it, in `signed/<year>-<month>.pdf`.
 
 If the file cannot be read, it is renamed to `timesheet.corrupt-<timestamp>.json` (never overwritten)
 and the app starts empty with a warning.

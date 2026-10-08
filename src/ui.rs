@@ -1,6 +1,6 @@
-//! Desktop UI replicating the "A · Monthly entry (single project)" mockup.
+//! Desktop UI replicating the mockups in `mockups/`: monthly entry and past months (sent & approval tracking).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::{Datelike, NaiveDate};
@@ -12,7 +12,8 @@ use eframe::egui::{
 
 use crate::fonts;
 use crate::model::{
-    Data, Kind, MAX_DAY_HOURS, Month, Settings, Store, day_range, fmt_hours, weekday_long, weekday_short,
+    Approval, ApprovalStatus, Data, Kind, MAX_DAY_HOURS, Month, Settings, Store, day_range, fmt_hours, weekday_long,
+    weekday_short,
 };
 use crate::pdf;
 
@@ -36,7 +37,12 @@ const DANGER_SOFT: Color32 = Color32::from_rgb(0xFD, 0xEC, 0xEA);
 const OK: Color32 = Color32::from_rgb(0x0F, 0x7B, 0x6C);
 const OK_FG: Color32 = Color32::from_rgb(0x0A, 0x52, 0x48);
 const OK_SOFT: Color32 = Color32::from_rgb(0xDD, 0xF3, 0xEF);
+const OK_BORDER: Color32 = Color32::from_rgb(0xBF, 0xE3, 0xDC);
+const OK_TINT: Color32 = Color32::from_rgb(0xF1, 0xFA, 0xF8);
 const WARN: Color32 = Color32::from_rgb(0x8A, 0x3C, 0x08);
+const WARN_SOFT: Color32 = Color32::from_rgb(0xFF, 0xF1, 0xE6);
+const WARN_BORDER: Color32 = Color32::from_rgb(0xE9, 0xB4, 0x8C);
+const DISABLED: Color32 = Color32::from_rgb(0x8A, 0x8F, 0x9C);
 
 fn kind_color(kind: Kind) -> Color32 {
     let (r, g, b) = pdf::kind_rgb(kind);
@@ -143,6 +149,9 @@ enum Icon {
     Plus,
     Download,
     Clock,
+    Check,
+    FileCheck,
+    Paperclip,
 }
 
 impl Icon {
@@ -171,6 +180,26 @@ impl Icon {
             Icon::Clock => {
                 p.circle_stroke(at(12.0, 12.0), 9.0 * s, stroke);
                 line(&[(12.0, 7.0), (12.0, 12.0), (15.0, 14.0)])
+            }
+            Icon::Check => line(&[(5.0, 12.5), (10.0, 17.0), (19.0, 7.5)]),
+            Icon::FileCheck => {
+                line(&[(14.0, 3.0), (5.0, 3.0), (5.0, 21.0), (19.0, 21.0), (19.0, 8.0), (14.0, 3.0), (14.0, 8.0), (19.0, 8.0)]);
+                line(&[(9.0, 14.0), (11.0, 16.0), (15.0, 12.0)])
+            }
+            Icon::Paperclip => {
+                // The mockup path is three semicircles joined by straight segments.
+                let arc = |pts: &mut Vec<(f32, f32)>, cx: f32, cy: f32, r: f32, from_deg: f32| {
+                    for i in 0..=12 {
+                        let a = (from_deg + 15.0 * i as f32).to_radians();
+                        pts.push((cx + r * a.cos(), cy + r * a.sin()));
+                    }
+                };
+                let mut pts = vec![(21.0, 12.5)];
+                arc(&mut pts, 9.0, 17.5, 4.95, 45.0);
+                arc(&mut pts, 16.35, 7.85, 3.32, 225.0);
+                arc(&mut pts, 9.0, 17.5, 1.7, 45.0);
+                pts.push((15.5, 8.6));
+                line(&pts)
             }
         };
     }
@@ -294,10 +323,10 @@ fn text(ui: &mut Ui, s: impl Into<String>, font: FontId, color: Color32) -> Resp
     ui.label(egui::RichText::new(s).font(font).color(color))
 }
 
-fn pill(ui: &mut Ui, s: &str, bg: Color32, fg: Color32, font: FontId, pad: Vec2) -> Response {
+fn pill(ui: &mut Ui, s: &str, bg: Color32, fg: Color32, font: FontId, pad: Vec2, radius: u8) -> Response {
     let galley = ui.painter().layout_no_wrap(s.to_owned(), font, fg);
     let (rect, response) = ui.allocate_exact_size(galley.size() + 2.0 * pad, Sense::hover());
-    ui.painter().rect_filled(rect, 99, bg);
+    ui.painter().rect_filled(rect, radius, bg);
     ui.painter().galley(rect.min + pad, galley, fg);
     response
 }
@@ -342,6 +371,131 @@ fn card<R>(ui: &mut Ui, border: Color32, margin: impl Into<Margin>, add: impl Fn
             add(ui)
         })
         .inner
+}
+
+/// Small uppercase column heading.
+fn caption(ui: &mut Ui, s: &str) {
+    ui.label(egui::RichText::new(s.to_uppercase()).font(sans(12.0, W::SemiBold)).color(MUTED).extra_letter_spacing(0.72));
+}
+
+/// 22 px checkbox with a semibold label, in a 44 px tall row. Returns a changed response when toggled.
+fn checkbox(ui: &mut Ui, checked: &mut bool, label: &str, accent: Color32, enabled: bool) -> Response {
+    let fg = if enabled { INK } else { DISABLED };
+    let galley = ui.painter().layout_no_wrap(label.to_owned(), sans(15.0, W::SemiBold), fg);
+    let size = vec2(22.0 + 10.0 + galley.size().x, 44.0);
+    let (rect, mut response) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
+    if response.clicked() {
+        *checked = !*checked;
+        response.mark_changed();
+    }
+    response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, enabled, *checked, label));
+    let p = ui.painter();
+    let box_rect = Rect::from_center_size(pos2(rect.left() + 11.0, rect.center().y), vec2(22.0, 22.0));
+    let alpha = if enabled { 1.0 } else { 0.45 };
+    if *checked {
+        p.rect_filled(box_rect, 5, accent.gamma_multiply(alpha));
+        Icon::Check.paint(p, box_rect.center(), 18.0, WHITE, 2.5);
+    } else {
+        let border = if enabled && response.hovered() { accent } else { MUTED };
+        p.rect_filled(box_rect, 5, WHITE);
+        p.rect_stroke(box_rect, 5, Stroke::new(1.5, border.gamma_multiply(alpha)), StrokeKind::Inside);
+    }
+    p.galley(pos2(box_rect.right() + 10.0, rect.center().y - galley.size().y / 2.0), galley, fg);
+    focus_ring(ui, &response, rect, 8);
+    response.on_hover_cursor(if enabled { CursorIcon::PointingHand } else { CursorIcon::NotAllowed })
+}
+
+/// Date picker button styled like the mockup's date input. Returns true when the date changed.
+fn date_field(ui: &mut Ui, date: &mut NaiveDate, id_salt: &str, a11y: &str) -> bool {
+    let mut picked = jiff::civil::Date::new(date.year() as i16, date.month() as i8, date.day() as i8).unwrap_or_default();
+    let response = ui
+        .scope(|ui| {
+            ui.spacing_mut().interact_size.y = 38.0;
+            ui.spacing_mut().button_padding = vec2(10.0, 0.0);
+            let w = &mut ui.visuals_mut().widgets;
+            for state in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
+                state.weak_bg_fill = WHITE;
+                state.corner_radius = CornerRadius::same(8);
+            }
+            ui.add(
+                egui_extras::DatePickerButton::new(&mut picked)
+                    .id_salt(id_salt)
+                    .show_icon(false)
+                    .calendar_week(false)
+                    .highlight_weekends(false),
+            )
+        })
+        .inner;
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, format!("{a11y}: {date}")));
+    let new = NaiveDate::from_ymd_opt(picked.year().into(), picked.month() as u32, picked.day() as u32);
+    match new {
+        Some(d) if response.changed() && d != *date => {
+            *date = d;
+            true
+        }
+        _ => false,
+    }
+}
+
+/// CSS-like `flex-wrap` row: each item gets at least its `basis` width and lines share leftover width by `grow`.
+fn flex_wrap(ui: &mut Ui, items: &[(f32, f32)], gap: Vec2, mut add: impl FnMut(&mut Ui, usize)) {
+    let width = ui.available_width();
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = gap.y;
+        let mut start = 0;
+        while start < items.len() {
+            let mut end = start + 1;
+            let mut used = items[start].0;
+            while end < items.len() && used + gap.x + items[end].0 <= width {
+                used += gap.x + items[end].0;
+                end += 1;
+            }
+            let line = &items[start..end];
+            let grow: f32 = line.iter().map(|i| i.1).sum();
+            let extra = (width - used).max(0.0);
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = gap.x;
+                for (k, &(basis, g)) in line.iter().enumerate() {
+                    let w = (basis + extra * g / grow).min(width);
+                    ui.allocate_ui_with_layout(vec2(w, 0.0), Layout::top_down(Align::Min), |ui| {
+                        ui.set_width(w);
+                        add(ui, start + k);
+                    });
+                }
+            });
+            start = end;
+        }
+    });
+}
+
+/// Opens `path` with the system's default app.
+fn open_path(path: &Path) -> std::io::Result<()> {
+    if !path.exists() {
+        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "file is missing"));
+    }
+    let program = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(windows) {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    let mut child = std::process::Command::new(program).arg(path).spawn()?;
+    std::thread::spawn(move || child.wait());
+    Ok(())
+}
+
+/// Entry progress of a month, as (label, background, foreground).
+fn progress_status(data: &Data, month: Month) -> (&'static str, Color32, Color32) {
+    if data.has_overfull_day(month) {
+        ("Needs fixes", DANGER_SOFT, DANGER)
+    } else if month.weekdays().iter().all(|&d| data.day_total(d) >= MAX_DAY_HOURS) {
+        ("Complete", OK_SOFT, OK_FG)
+    } else if data.month_total(month) > 0.0 {
+        ("In progress", CHIP, INK2)
+    } else {
+        ("Empty", CHIP, INK2)
+    }
 }
 
 fn hline(ui: &mut Ui, color: Color32) {
@@ -392,6 +546,14 @@ enum Action {
     Remove(u64),
 }
 
+/// Past-months actions that need dialogs or file access, run after drawing the card.
+enum MonthAction {
+    Export(Report),
+    Attach,
+    Open,
+    Remove,
+}
+
 pub struct App {
     store: Store,
     data_path: PathBuf,
@@ -401,7 +563,8 @@ pub struct App {
     today: NaiveDate,
     settings_draft: Option<Settings>,
     banner: Option<String>,
-    export_note: Option<Result<String, String>>,
+    /// Outcome of the last export, for the month it covered.
+    export_note: Option<(Month, Result<String, String>)>,
 }
 
 fn data_path() -> PathBuf {
@@ -456,8 +619,7 @@ impl App {
             .unwrap_or(0);
     }
 
-    fn export(&mut self, report: Report) {
-        let month = self.month;
+    fn export(&mut self, month: Month, report: Report) {
         let Some(mut path) = rfd::FileDialog::new()
             .set_title(format!("Export {}", report.title()))
             .set_file_name(pdf::file_name(month, report.title()))
@@ -473,11 +635,22 @@ impl App {
             Report::Detailed => pdf::detailed_report(self.data(), month),
             Report::Summary => pdf::daily_summary(self.data(), month),
         };
-        self.export_note = Some(
-            bytes
-                .and_then(|b| std::fs::write(&path, b).map_err(|e| format!("Could not write {}: {e}", path.display())))
-                .map(|()| format!("Saved {}", path.display())),
-        );
+        let note = bytes
+            .and_then(|b| std::fs::write(&path, b).map_err(|e| format!("Could not write {}: {e}", path.display())))
+            .map(|()| format!("Saved {}", path.display()));
+        self.export_note = Some((month, note));
+    }
+
+    fn export_note_ui(&self, ui: &mut Ui, month: Month) {
+        match &self.export_note {
+            Some((m, Ok(msg))) if *m == month => {
+                ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(13.0, W::Regular)).color(OK_FG)).wrap());
+            }
+            Some((m, Err(msg))) if *m == month => {
+                ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(13.0, W::SemiBold)).color(DANGER)).wrap());
+            }
+            _ => {}
+        }
     }
 }
 
@@ -499,7 +672,7 @@ impl eframe::App for App {
                     }
                     match self.view {
                         View::Timesheet => dirty |= self.timesheet(ui),
-                        View::PastMonths => self.past_months(ui),
+                        View::PastMonths => dirty |= self.past_months(ui),
                     }
                     ui.add_space(32.0);
                 });
@@ -591,7 +764,7 @@ impl App {
                     let s = &self.store.data.settings;
                     text(ui, s.project_or_placeholder(), sans(15.0, W::SemiBold), INK);
                     text(ui, s.client_or_placeholder(), sans(14.0, W::Regular), MUTED);
-                    pill(ui, "Draft · sent monthly", CHIP, INK2, sans(13.0, W::SemiBold), vec2(10.0, 3.0));
+                    pill(ui, "Draft · sent monthly", CHIP, INK2, sans(13.0, W::SemiBold), vec2(10.0, 3.0), 99);
                 });
                 ui.horizontal(|ui| {
                     if Btn::outline("").icon(Icon::ChevronLeft, 18.0).a11y("Previous month").min(44.0, 44.0).show(ui).clicked() {
@@ -683,7 +856,7 @@ impl App {
         let data = self.data();
         let days = month.weekdays();
         let open: Vec<NaiveDate> = days.iter().copied().filter(|&d| data.day_total(d) < MAX_DAY_HOURS).collect();
-        let any_over = days.iter().any(|&d| data.day_total(d) > MAX_DAY_HOURS);
+        let any_over = data.has_overfull_day(month);
         let target = month.target_hours();
         let total = data.month_total(month);
         let by_kind: Vec<(Kind, f64)> = Kind::ALL.iter().map(|&k| (k, data.kind_total(month, k))).collect();
@@ -758,75 +931,275 @@ impl App {
             }
             let note = format!("Both PDFs cover {}, weekdays only.", month.period_label().rsplit_once(',').map_or("", |p| p.0));
             text(ui, note, sans(13.0, W::Regular), MUTED);
-            match &self.export_note {
-                Some(Ok(msg)) => {
-                    ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(13.0, W::Regular)).color(OK_FG)).wrap());
-                }
-                Some(Err(msg)) => {
-                    ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(13.0, W::SemiBold)).color(DANGER)).wrap());
-                }
-                None => {}
-            }
+            self.export_note_ui(ui, month);
         });
         if let Some(report) = export {
-            self.export(report);
+            self.export(month, report);
         }
     }
 
     // -----------------------------------------------------------------------
     // Past months view
 
-    fn past_months(&mut self, ui: &mut Ui) {
-        text(ui, "Past months", sans(30.0, W::Bold), INK);
-        let mut months = self.data().months_with_entries();
-        let current = Month::of(self.today);
-        if !months.contains(&current) {
-            months.insert(0, current);
-            months.sort_by(|a, b| b.cmp(a));
-        }
-        ui.spacing_mut().item_spacing.y = 12.0;
-        let mut open = None;
-        for month in months {
-            let data = self.data();
-            let days = month.weekdays();
-            let total = data.month_total(month);
-            let target = month.target_hours();
-            let done = days.iter().filter(|&&d| data.day_total(d) >= MAX_DAY_HOURS).count();
-            let over = days.iter().any(|&d| data.day_total(d) > MAX_DAY_HOURS);
-            let (status, bg, fg) = if over {
-                ("Needs fixes", DANGER_SOFT, DANGER)
-            } else if done == days.len() {
-                ("Complete", OK_SOFT, OK_FG)
-            } else if total > 0.0 {
-                ("In progress", CHIP, INK2)
-            } else {
-                ("Empty", CHIP, INK2)
-            };
-            let segments: Vec<(f32, Color32)> =
-                Kind::ALL.iter().map(|&k| ((data.kind_total(month, k) / target) as f32, kind_color(k))).collect();
-            card(ui, BORDER, Margin::symmetric(20, 16), |ui| {
+    /// Returns true when data changed.
+    fn past_months(&mut self, ui: &mut Ui) -> bool {
+        let today = self.today;
+        let current = Month::of(today);
+        let months = self.data().closed_months(current);
+        let statuses: Vec<ApprovalStatus> = months.iter().map(|&m| self.data().approval(m).status(today)).collect();
+        let mut dirty = false;
+
+        // Title row.
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing = vec2(10.0, 6.0);
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 16.0;
-                    ui.vertical(|ui| {
-                        ui.set_width(200.0);
-                        ui.spacing_mut().item_spacing.y = 2.0;
-                        text(ui, month.label(), sans(17.0, W::Bold), INK);
-                        text(ui, format!("{done} of {} workdays complete", days.len()), sans(14.0, W::Regular), MUTED);
-                    });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if Btn::outline("Open").a11y(format!("Open {}", month.label())).show(ui).clicked() {
-                            open = Some(month);
-                        }
-                        pill(ui, status, bg, fg, sans(13.0, W::SemiBold), vec2(10.0, 4.0));
-                        text(ui, format!("{} / {} h", fmt_hours(total), fmt_hours(target)), mono(15.0, true), INK);
-                        bar(ui, ui.available_width(), 8.0, &segments);
-                    });
+                    let s = &self.store.data.settings;
+                    text(ui, s.project_or_placeholder(), sans(15.0, W::SemiBold), INK);
+                    text(ui, s.client_or_placeholder(), sans(14.0, W::Regular), MUTED);
+                });
+                text(ui, "Past months", sans(30.0, W::Bold), INK);
+            });
+            ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
+                ui.spacing_mut().item_spacing.x = 10.0;
+                let count = |f: fn(&ApprovalStatus) -> bool| statuses.iter().filter(|s| f(s)).count();
+                let counts = [
+                    (count(|s| matches!(s, ApprovalStatus::NotSent)), "not sent", CHIP, INK2),
+                    (count(|s| matches!(s, ApprovalStatus::Awaiting { .. })), "awaiting signature", ACCENT_SOFT, ACCENT_DARK),
+                    (count(|s| matches!(s, ApprovalStatus::Approved)), "approved", OK_SOFT, OK_FG),
+                ];
+                for (n, label, bg, fg) in counts.into_iter().rev() {
+                    pill(ui, &format!("{n} {label}"), bg, fg, sans(14.0, W::SemiBold), vec2(12.0, 8.0), 10);
+                }
+            });
+        });
+
+        if self.current_month_card(ui, current) {
+            self.open_month(current);
+            self.view = View::Timesheet;
+        }
+
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(14.0, 6.0);
+            text(ui, "Each month:", sans(14.0, W::SemiBold), INK);
+            let steps = [
+                "1. Export both PDFs",
+                "2. Tick “Sent” when emailed to your manager",
+                "3. Tick “Approved” when they reply",
+                "4. Attach the signed PDF",
+            ];
+            for (i, step) in steps.into_iter().enumerate() {
+                if i > 0 {
+                    text(ui, "›", sans(14.0, W::Regular), INK2);
+                }
+                text(ui, step, sans(14.0, W::Regular), INK2);
+            }
+        });
+
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 12.0;
+            if months.is_empty() {
+                text(ui, "No closed months yet. A month appears here once it ends.", sans(15.0, W::Regular), MUTED);
+            }
+            for (&month, &status) in months.iter().zip(&statuses) {
+                let mut approval = self.data().approval(month);
+                let mut action = None;
+                self.closed_month_card(ui, month, status, &mut approval, &mut action);
+                if approval != self.data().approval(month) {
+                    *self.store.data.approval_mut(month) = approval;
+                    dirty = true;
+                }
+                dirty |= action.is_some_and(|a| self.month_action(month, a));
+            }
+        });
+        dirty
+    }
+
+    /// Link card to the month being entered. Returns true when clicked.
+    fn current_month_card(&self, ui: &mut Ui, month: Month) -> bool {
+        let data = self.data();
+        let total = data.month_total(month);
+        let target = month.target_hours();
+        let (status, bg, fg) = progress_status(data, month);
+        let frame = Frame::new().fill(WHITE).stroke(Stroke::new(1.0, BORDER)).corner_radius(14).inner_margin(Margin::symmetric(20, 16));
+        let rect = frame.show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                ui.horizontal(|ui| {
+                    ui.set_min_width(150.0);
+                    text(ui, month.label(), sans(17.0, W::Bold), INK);
+                });
+                pill(ui, status, bg, fg, sans(13.0, W::SemiBold), vec2(10.0, 4.0), 99);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    text(ui, "Continue entering time", sans(15.0, W::SemiBold), ACCENT);
+                    text(ui, format!("{} / {} h", fmt_hours(total), fmt_hours(target)), mono(14.0, false), INK);
+                    ui.spacing_mut().item_spacing.x = 10.0;
+                    bar(ui, ui.available_width(), 8.0, &[((total / target) as f32, ACCENT)]);
                 });
             });
+        })
+        .response
+        .rect;
+        let response = ui.interact(rect, ui.id().with("current-month"), Sense::click());
+        response.widget_info(|| WidgetInfo::labeled(WidgetType::Link, true, format!("{}, continue entering time", month.label())));
+        if response.hovered() {
+            ui.painter().rect_stroke(rect, 14, Stroke::new(1.0, HOVER_BORDER), StrokeKind::Inside);
         }
-        if let Some(month) = open {
-            self.open_month(month);
-            self.view = View::Timesheet;
+        focus_ring(ui, &response, rect, 14);
+        response.on_hover_cursor(CursorIcon::PointingHand).clicked()
+    }
+
+    /// One closed month: totals, PDF exports, sent and approved ticks, signed copy.
+    fn closed_month_card(
+        &self,
+        ui: &mut Ui,
+        month: Month,
+        status: ApprovalStatus,
+        approval: &mut Approval,
+        action: &mut Option<MonthAction>,
+    ) {
+        let data = self.data();
+        let today = self.today;
+        let label = month.label();
+        let can_export = !data.has_overfull_day(month);
+        let (status_text, pill_bg, pill_fg, border) = match status {
+            ApprovalStatus::NotSent => ("Not sent", CHIP, INK2, BORDER),
+            ApprovalStatus::Awaiting { late: true, .. } => ("Follow up", WARN_SOFT, WARN, WARN_BORDER),
+            ApprovalStatus::Awaiting { .. } => ("Awaiting signature", ACCENT_SOFT, ACCENT_DARK, BORDER),
+            ApprovalStatus::Approved if approval.signed_pdf.is_some() => ("Approved · signed copy saved", OK_SOFT, OK_FG, BORDER),
+            ApprovalStatus::Approved => ("Approved", OK_SOFT, OK_FG, BORDER),
+        };
+        // Mockup flex bases, except the first column, widened to fit the "Approved · signed copy saved" pill.
+        let columns = [(200.0, 1.0), (170.0, 1.0), (190.0, 1.0), (190.0, 1.0), (250.0, 1.4)];
+        card(ui, border, Margin::symmetric(20, 18), |ui| {
+            flex_wrap(ui, &columns, vec2(28.0, 20.0), |ui, column| {
+                ui.spacing_mut().item_spacing.y = 6.0;
+                match column {
+                    0 => {
+                        text(ui, &label, sans(17.0, W::Bold), INK);
+                        let mut job = LayoutJob::default();
+                        job.append(&format!("{} h", fmt_hours(data.month_total(month))), 0.0, egui::TextFormat::simple(mono(14.0, true), INK));
+                        let days = format!(" · {} workdays", month.weekdays().len());
+                        job.append(&days, 0.0, egui::TextFormat::simple(sans(14.0, W::Regular), INK2));
+                        ui.label(job);
+                        pill(ui, status_text, pill_bg, pill_fg, sans(13.0, W::SemiBold), vec2(10.0, 4.0), 99);
+                    }
+                    1 => {
+                        caption(ui, "Generated PDFs");
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        for report in [Report::Detailed, Report::Summary] {
+                            let mut b = Btn::base(report.title()).icon(Icon::Download, 16.0).fg(ACCENT).min(0.0, 32.0);
+                            b.pad = 0.0;
+                            b.left = true;
+                            b.hover_fill = Color32::TRANSPARENT;
+                            b.enabled = can_export;
+                            b.a11y = Some(format!("Export {}, {label}", report.title()));
+                            if b.show(ui).clicked() {
+                                *action = Some(MonthAction::Export(report));
+                            }
+                        }
+                        ui.spacing_mut().item_spacing.y = 6.0;
+                        if !can_export {
+                            text(ui, "Fix days over 8 h to export.", sans(13.0, W::SemiBold), DANGER);
+                        }
+                        self.export_note_ui(ui, month);
+                    }
+                    2 => {
+                        let mut sent = approval.sent.is_some();
+                        if checkbox(ui, &mut sent, "Sent to manager", ACCENT, true).changed() {
+                            approval.set_sent(sent, today);
+                        }
+                        match approval.sent.as_mut() {
+                            Some(date) => {
+                                date_field(ui, date, &format!("sent-{}", month.key()), &format!("Date sent, {label}"));
+                            }
+                            None => {
+                                text(ui, "Tick after emailing both PDFs.", sans(13.0, W::Regular), MUTED);
+                            }
+                        }
+                    }
+                    3 => {
+                        let mut approved = approval.approved.is_some();
+                        let enabled = approval.sent.is_some();
+                        if checkbox(ui, &mut approved, "Approved by manager", OK, enabled).changed() {
+                            approval.set_approved(approved, today);
+                        }
+                        if let Some(date) = approval.approved.as_mut() {
+                            date_field(ui, date, &format!("approved-{}", month.key()), &format!("Date approved, {label}"));
+                        } else if let ApprovalStatus::Awaiting { days, late } = status {
+                            let ago = match days {
+                                0 => "Sent today".to_owned(),
+                                1 => "Sent 1 day ago".to_owned(),
+                                n => format!("Sent {n} days ago"),
+                            };
+                            let (tail, color) = if late { ("time to follow up", WARN) } else { ("waiting for reply", INK2) };
+                            text(ui, format!("{ago} · {tail}"), sans(13.0, W::SemiBold), color);
+                        }
+                    }
+                    _ => {
+                        caption(ui, "Signed timesheet");
+                        if let Some(name) = &approval.signed_pdf {
+                            signed_file_row(ui, name, &label, action);
+                        } else {
+                            let mut b = Btn::base("Attach signed PDF")
+                                .icon(Icon::Paperclip, 18.0)
+                                .fg(ACCENT)
+                                .font(sans(15.0, W::SemiBold))
+                                .min(ui.available_width(), 44.0)
+                                .a11y(format!("Attach signed PDF, {label}"));
+                            b.dashed = true;
+                            b.left = true;
+                            b.pad = 14.0;
+                            b.hover_fill = ACCENT_TINT;
+                            if b.show(ui).clicked() {
+                                *action = Some(MonthAction::Attach);
+                            }
+                            let hint = if status == ApprovalStatus::Approved {
+                                "Optional · keeps a copy with this month."
+                            } else {
+                                "Attaching marks the month as sent and approved."
+                            };
+                            text(ui, hint, sans(13.0, W::Regular), MUTED);
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    /// Runs a past-month action. Returns true when data changed.
+    fn month_action(&mut self, month: Month, action: MonthAction) -> bool {
+        let result = match action {
+            MonthAction::Export(report) => {
+                self.export(month, report);
+                return false;
+            }
+            MonthAction::Attach => {
+                let Some(path) = rfd::FileDialog::new()
+                    .set_title(format!("Signed timesheet for {}", month.label()))
+                    .add_filter("PDF", &["pdf"])
+                    .pick_file()
+                else {
+                    return false;
+                };
+                self.store.attach_signed_pdf(month, &path, self.today).map_err(|e| format!("Could not attach {}: {e}", path.display()))
+            }
+            MonthAction::Open => {
+                let path = self.store.signed_pdf_path(month);
+                if let Err(e) = open_path(&path) {
+                    self.banner = Some(format!("Could not open {}: {e}", path.display()));
+                }
+                return false;
+            }
+            MonthAction::Remove => self.store.remove_signed_pdf(month).map_err(|e| format!("Could not remove the signed PDF: {e}")),
+        };
+        match result {
+            Ok(()) => true,
+            Err(msg) => {
+                self.banner = Some(msg);
+                false
+            }
         }
     }
 
@@ -976,7 +1349,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                     text(ui, format!("{} {}", Month::of(date).short_name(), date.day()), sans(17.0, W::Medium), MUTED);
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    pill(ui, &status, pill_bg, pill_fg, sans(13.0, W::SemiBold), vec2(10.0, 4.0));
+                    pill(ui, &status, pill_bg, pill_fg, sans(13.0, W::SemiBold), vec2(10.0, 4.0), 99);
                     text(ui, format!("{} / 8 h", fmt_hours(total)), mono(15.0, true), INK);
                     bar(ui, ui.available_width(), 8.0, &segments);
                 });
@@ -1117,4 +1490,38 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
         });
     });
     dirty
+}
+
+/// Saved signed copy: the name opens it, the cross removes it.
+fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Option<MonthAction>) {
+    let frame = Frame::new()
+        .fill(OK_TINT)
+        .stroke(Stroke::new(1.0, OK_BORDER))
+        .corner_radius(10)
+        .inner_margin(Margin { left: 12, right: 6, top: 6, bottom: 6 });
+    frame.show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let (rect, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+            Icon::FileCheck.paint(ui.painter(), rect.center(), 18.0, OK_FG, 2.0);
+            // Leaves room for the item spacing before the name and the remove button.
+            let name_w = (ui.available_width() - 8.0 - 8.0 - 36.0).max(0.0);
+            ui.allocate_ui_with_layout(vec2(name_w, 36.0), Layout::left_to_right(Align::Center), |ui| {
+                ui.set_width(name_w);
+                let rich = egui::RichText::new(name).font(sans(14.0, W::SemiBold)).color(OK_FG);
+                let link = ui.add(egui::Label::new(rich).truncate().sense(Sense::click()));
+                link.widget_info(|| WidgetInfo::labeled(WidgetType::Link, true, format!("Open {name}")));
+                if link.on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                    *action = Some(MonthAction::Open);
+                }
+            });
+            let mut b = Btn::base("").icon(Icon::Close, 14.0).fg(INK2).min(36.0, 36.0).a11y(format!("Remove signed PDF for {month_label}"));
+            b.radius = 8;
+            b.pad = 0.0;
+            if b.show(ui).clicked() {
+                *action = Some(MonthAction::Remove);
+            }
+        });
+    });
 }
