@@ -3,6 +3,7 @@
 //! Layout is computed into a list of drawing operations per page, then rendered with krilla.
 
 use chrono::Datelike;
+use krilla::Document;
 use krilla::color::rgb;
 use krilla::geom::{PathBuilder, Point, Rect};
 use krilla::metadata::Metadata;
@@ -10,10 +11,9 @@ use krilla::num::NormalizedF32;
 use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule, Stroke};
 use krilla::text::{Font, TextDirection};
-use krilla::Document;
 
 use crate::fonts;
-use crate::model::{day_range, fmt_report, weekday_short, Data, Kind, Month, MAX_DAY_HOURS};
+use crate::model::{Data, Kind, MAX_DAY_HOURS, Month, day_range, fmt_report, weekday_short};
 
 // A4 in points.
 const PAGE_W: f32 = 595.28;
@@ -52,7 +52,13 @@ enum Face {
 }
 
 impl Face {
-    const ALL: [Face; 5] = [Face::Regular, Face::SemiBold, Face::Bold, Face::Mono, Face::MonoSemiBold];
+    const ALL: [Face; 5] = [
+        Face::Regular,
+        Face::SemiBold,
+        Face::Bold,
+        Face::Mono,
+        Face::MonoSemiBold,
+    ];
 
     fn bytes(self) -> &'static [u8] {
         match self {
@@ -69,16 +75,41 @@ impl Face {
         let face = ttf_parser::Face::parse(self.bytes(), 0).expect("embedded font parses");
         let units: u32 = text
             .chars()
-            .map(|c| face.glyph_index(c).and_then(|g| face.glyph_hor_advance(g)).unwrap_or(0) as u32)
+            .map(|c| {
+                face.glyph_index(c)
+                    .and_then(|g| face.glyph_hor_advance(g))
+                    .unwrap_or(0) as u32
+            })
             .sum();
         units as f32 * size / face.units_per_em() as f32
     }
 }
 
 enum Op {
-    Text { x: f32, y: f32, face: Face, size: f32, color: Rgb, text: String },
-    Rect { x: f32, y: f32, w: f32, h: f32, radius: f32, fill: Option<Rgb>, stroke: Option<(Rgb, f32)> },
-    HLine { x1: f32, x2: f32, y: f32, color: Rgb, width: f32 },
+    Text {
+        x: f32,
+        y: f32,
+        face: Face,
+        size: f32,
+        color: Rgb,
+        text: String,
+    },
+    Rect {
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        radius: f32,
+        fill: Option<Rgb>,
+        stroke: Option<(Rgb, f32)>,
+    },
+    HLine {
+        x1: f32,
+        x2: f32,
+        y: f32,
+        color: Rgb,
+        width: f32,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -95,7 +126,10 @@ struct Canvas {
 
 impl Canvas {
     fn new() -> Self {
-        Canvas { pages: vec![Vec::new()], y: 0.0 }
+        Canvas {
+            pages: vec![Vec::new()],
+            y: 0.0,
+        }
     }
 
     fn push(&mut self, op: Op) {
@@ -114,18 +148,49 @@ impl Canvas {
         }
     }
 
-    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
-    fn text(&mut self, x: f32, baseline: f32, align: Align, face: Face, size: f32, color: Rgb, text: &str) {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "drawing primitive: position, style and content"
+    )]
+    fn text(
+        &mut self,
+        x: f32,
+        baseline: f32,
+        align: Align,
+        face: Face,
+        size: f32,
+        color: Rgb,
+        text: &str,
+    ) {
         let x = match align {
             Align::Left => x,
             Align::Right => x - face.width(text, size),
         };
-        self.push(Op::Text { x, y: baseline, face, size, color, text: text.to_owned() });
+        self.push(Op::Text {
+            x,
+            y: baseline,
+            face,
+            size,
+            color,
+            text: text.to_owned(),
+        });
     }
 
     /// Text with extra tracking between characters (used for the small uppercase eyebrow).
-    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
-    fn tracked(&mut self, x: f32, baseline: f32, face: Face, size: f32, color: Rgb, text: &str, tracking: f32) {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "drawing primitive: position, style and content"
+    )]
+    fn tracked(
+        &mut self,
+        x: f32,
+        baseline: f32,
+        face: Face,
+        size: f32,
+        color: Rgb,
+        text: &str,
+        tracking: f32,
+    ) {
         let mut x = x;
         let mut buf = [0u8; 4];
         for c in text.chars() {
@@ -136,12 +201,38 @@ impl Canvas {
     }
 
     fn hline(&mut self, x1: f32, x2: f32, y: f32, color: Rgb, width: f32) {
-        self.push(Op::HLine { x1, x2, y, color, width });
+        self.push(Op::HLine {
+            x1,
+            x2,
+            y,
+            color,
+            width,
+        });
     }
 
-    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
-    fn rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, fill: Option<Rgb>, stroke: Option<(Rgb, f32)>) {
-        self.push(Op::Rect { x, y, w, h, radius, fill, stroke });
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "drawing primitive: position, style and content"
+    )]
+    fn rect(
+        &mut self,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        radius: f32,
+        fill: Option<Rgb>,
+        stroke: Option<(Rgb, f32)>,
+    ) {
+        self.push(Op::Rect {
+            x,
+            y,
+            w,
+            h,
+            radius,
+            fill,
+            stroke,
+        });
     }
 
     /// Small rounded square marking a task type.
@@ -154,20 +245,51 @@ impl Canvas {
 fn header(c: &mut Canvas, data: &Data, month: Month, eyebrow: &str) {
     let s = &data.settings;
     c.tracked(LEFT, 63.0, Face::SemiBold, 8.6, INK2, eyebrow, 0.55);
-    c.text(LEFT, 92.0, Align::Left, Face::Bold, 22.5, INK, &month.label());
-    let subtitle = format!("{} · {}", s.project_or_placeholder(), s.client_or_placeholder());
-    c.text(LEFT, 111.0, Align::Left, Face::Regular, 10.5, INK2, &subtitle);
+    c.text(
+        LEFT,
+        92.0,
+        Align::Left,
+        Face::Bold,
+        22.5,
+        INK,
+        &month.label(),
+    );
+    let subtitle = format!(
+        "{} · {}",
+        s.project_or_placeholder(),
+        s.client_or_placeholder()
+    );
+    c.text(
+        LEFT,
+        111.0,
+        Align::Left,
+        Face::Regular,
+        10.5,
+        INK2,
+        &subtitle,
+    );
 
     let rows = [
         ("Consultant", s.consultant_or_placeholder().to_owned()),
         ("Period", month.period_label()),
         ("Workdays", month.weekdays().len().to_string()),
     ];
-    let value_w = rows.iter().map(|(_, v)| Face::SemiBold.width(v, BODY)).fold(0.0, f32::max);
+    let value_w = rows
+        .iter()
+        .map(|(_, v)| Face::SemiBold.width(v, BODY))
+        .fold(0.0, f32::max);
     let label_right = RIGHT - value_w.max(52.0) - 12.0;
     for (i, (label, value)) in rows.iter().enumerate() {
         let y = 65.0 + i as f32 * 15.5;
-        c.text(label_right, y, Align::Right, Face::Regular, BODY, MUTED, label);
+        c.text(
+            label_right,
+            y,
+            Align::Right,
+            Face::Regular,
+            BODY,
+            MUTED,
+            label,
+        );
         c.text(RIGHT, y, Align::Right, Face::SemiBold, BODY, INK, value);
     }
     c.hline(LEFT, RIGHT, 128.0, INK, 1.4);
@@ -179,10 +301,17 @@ fn signatures(c: &mut Canvas, gap_above: f32) {
     let block = 26.0;
     let gap = gap_above.min(BOTTOM - block - c.y).max(40.0);
     c.ensure(gap + block);
-    let y = if c.at_page_top() { c.y + 40.0 } else { c.y + gap };
+    let y = if c.at_page_top() {
+        c.y + 40.0
+    } else {
+        c.y + gap
+    };
     let column_gap = 31.0;
     let w = (RIGHT - LEFT - column_gap) / 2.0;
-    for (i, label) in ["Consultant signature · date", "Client approval · date"].into_iter().enumerate() {
+    for (i, label) in ["Consultant signature · date", "Client approval · date"]
+        .into_iter()
+        .enumerate()
+    {
         let x = LEFT + i as f32 * (w + column_gap);
         c.hline(x, x + w, y, INK2, 0.8);
         c.text(x, y + 14.0, Align::Left, Face::Regular, BODY, INK2, label);
@@ -207,11 +336,35 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
     for (i, (label, color, hours)) in tiles.enumerate() {
         let x = LEFT + i as f32 * cell_w;
         if i > 0 {
-            c.push(Op::Rect { x, y: top, w: 0.0, h, radius: 0.0, fill: None, stroke: Some((LINE, 0.7)) });
+            c.push(Op::Rect {
+                x,
+                y: top,
+                w: 0.0,
+                h,
+                radius: 0.0,
+                fill: None,
+                stroke: Some((LINE, 0.7)),
+            });
         }
         c.swatch(x + 11.0, top + 17.5, color);
-        c.text(x + 19.5, top + 17.5, Align::Left, Face::Regular, BODY, INK2, label);
-        c.text(x + 11.0, top + 38.5, Align::Left, Face::MonoSemiBold, 14.5, INK, &format!("{} h", fmt_report(hours)));
+        c.text(
+            x + 19.5,
+            top + 17.5,
+            Align::Left,
+            Face::Regular,
+            BODY,
+            INK2,
+            label,
+        );
+        c.text(
+            x + 11.0,
+            top + 38.5,
+            Align::Left,
+            Face::MonoSemiBold,
+            14.5,
+            INK,
+            &format!("{} h", fmt_report(hours)),
+        );
     }
     c.rect(LEFT, top, RIGHT - LEFT, h, 3.0, None, Some((LINE, 0.7)));
 
@@ -228,8 +381,24 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
     let base = c.y + 15.0;
     c.text(x_date, base, Align::Left, Face::SemiBold, BODY, INK, "Date");
     c.text(x_type, base, Align::Left, Face::SemiBold, BODY, INK, "Type");
-    c.text(x_desc, base, Align::Left, Face::SemiBold, BODY, INK, "Description");
-    c.text(x_hours, base, Align::Right, Face::SemiBold, BODY, INK, "Hours");
+    c.text(
+        x_desc,
+        base,
+        Align::Left,
+        Face::SemiBold,
+        BODY,
+        INK,
+        "Description",
+    );
+    c.text(
+        x_hours,
+        base,
+        Align::Right,
+        Face::SemiBold,
+        BODY,
+        INK,
+        "Hours",
+    );
     c.text(x_day, base, Align::Right, Face::SemiBold, BODY, INK, "Day");
     c.y += 24.0;
     c.hline(LEFT, RIGHT, c.y, INK, 0.8);
@@ -241,7 +410,15 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
         let base = c.y + 14.0;
         let label = format!("{} {}", month.short_name(), day_range(&week, " – "));
         c.text(x_date, base, Align::Left, Face::SemiBold, BODY, INK, &label);
-        c.text(x_day, base, Align::Right, Face::MonoSemiBold, BODY, INK, &fmt_report(week_total));
+        c.text(
+            x_day,
+            base,
+            Align::Right,
+            Face::MonoSemiBold,
+            BODY,
+            INK,
+            &fmt_report(week_total),
+        );
         c.y += ROW_H;
         c.hline(LEFT, RIGHT, c.y, INK, 0.8);
 
@@ -252,10 +429,34 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
                 c.hline(LEFT, RIGHT, c.y, LINE, 0.6);
             }
             let base = c.y + 14.0;
-            c.text(x_date, base, Align::Left, Face::SemiBold, BODY, INK, &format!("{} {}", weekday_short(date), date.day()));
-            c.text(x_day, base, Align::Right, Face::MonoSemiBold, BODY, INK, &fmt_report(data.day_total(date)));
+            c.text(
+                x_date,
+                base,
+                Align::Left,
+                Face::SemiBold,
+                BODY,
+                INK,
+                &format!("{} {}", weekday_short(date), date.day()),
+            );
+            c.text(
+                x_day,
+                base,
+                Align::Right,
+                Face::MonoSemiBold,
+                BODY,
+                INK,
+                &fmt_report(data.day_total(date)),
+            );
             if lines.is_empty() {
-                c.text(x_desc, base, Align::Left, Face::Regular, BODY, MUTED, "No time recorded");
+                c.text(
+                    x_desc,
+                    base,
+                    Align::Left,
+                    Face::Regular,
+                    BODY,
+                    MUTED,
+                    "No time recorded",
+                );
                 c.y += ROW_H;
             }
             for line in lines {
@@ -263,17 +464,49 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
                 c.ensure(ROW_H);
                 let base = c.y + 14.0;
                 c.swatch(x_type, base, kind_rgb(line.kind));
-                c.text(x_type + 10.5, base, Align::Left, Face::Regular, BODY, INK, line.kind.label());
-                c.text(x_desc, base, Align::Left, Face::Regular, BODY, INK, &ellipsize(&line.desc, Face::Regular, BODY, desc_max));
-                c.text(x_hours, base, Align::Right, Face::Mono, BODY, INK, &fmt_report(line.hours()));
+                c.text(
+                    x_type + 10.5,
+                    base,
+                    Align::Left,
+                    Face::Regular,
+                    BODY,
+                    INK,
+                    line.kind.label(),
+                );
+                c.text(
+                    x_desc,
+                    base,
+                    Align::Left,
+                    Face::Regular,
+                    BODY,
+                    INK,
+                    &ellipsize(&line.desc, Face::Regular, BODY, desc_max),
+                );
+                c.text(
+                    x_hours,
+                    base,
+                    Align::Right,
+                    Face::Mono,
+                    BODY,
+                    INK,
+                    &fmt_report(line.hours()),
+                );
                 c.y += ROW_H;
             }
         }
     }
 
-    total_row(&mut c, &format!("Total {}", month.label()), &[(x_day, data.month_total(month))], x_date);
+    total_row(
+        &mut c,
+        &format!("Total {}", month.label()),
+        &[(x_day, data.month_total(month))],
+        x_date,
+    );
     signatures(&mut c, 71.0);
-    render(c, &format!("Timesheet · Detailed report · {}", month.label()))
+    render(
+        c,
+        &format!("Timesheet · Detailed report · {}", month.label()),
+    )
 }
 
 /// PDF 2 · Daily summary: one row per weekday with hours per task type.
@@ -283,10 +516,15 @@ pub fn daily_summary(data: &Data, month: Month) -> Result<Vec<u8>, String> {
 
     let width = RIGHT - LEFT;
     let x_date = LEFT + 8.0;
-    let x_kinds = [LEFT + width * 0.43, LEFT + width * 0.639, LEFT + width * 0.843];
+    let x_kinds = [
+        LEFT + width * 0.43,
+        LEFT + width * 0.639,
+        LEFT + width * 0.843,
+    ];
     let total_bg = LEFT + width * 0.858;
     let x_total = RIGHT - 8.0;
-    let total_col = |c: &mut Canvas, h: f32| c.rect(total_bg, c.y, RIGHT - total_bg, h, 0.0, Some(SOFT), None);
+    let total_col =
+        |c: &mut Canvas, h: f32| c.rect(total_bg, c.y, RIGHT - total_bg, h, 0.0, Some(SOFT), None);
 
     c.y = 146.0;
     let head_h = 24.6;
@@ -296,9 +534,21 @@ pub fn daily_summary(data: &Data, month: Month) -> Result<Vec<u8>, String> {
     c.text(x_date, base, Align::Left, Face::SemiBold, BODY, INK, "Date");
     for (k, x) in Kind::ALL.iter().zip(x_kinds) {
         c.text(x, base, Align::Right, Face::SemiBold, BODY, INK, k.label());
-        c.swatch(x - Face::SemiBold.width(k.label(), BODY) - 10.0, base, kind_rgb(*k));
+        c.swatch(
+            x - Face::SemiBold.width(k.label(), BODY) - 10.0,
+            base,
+            kind_rgb(*k),
+        );
     }
-    c.text(x_total, base, Align::Right, Face::SemiBold, BODY, INK, "Total");
+    c.text(
+        x_total,
+        base,
+        Align::Right,
+        Face::SemiBold,
+        BODY,
+        INK,
+        "Total",
+    );
     c.y += head_h;
     c.hline(LEFT, RIGHT, c.y, INK, 0.8);
 
@@ -311,12 +561,33 @@ pub fn daily_summary(data: &Data, month: Month) -> Result<Vec<u8>, String> {
                 c.hline(LEFT, RIGHT, c.y, color, width);
             }
             let base = c.y + 14.0;
-            let label = format!("{}, {} {}", weekday_short(date), month.short_name(), date.day());
+            let label = format!(
+                "{}, {} {}",
+                weekday_short(date),
+                month.short_name(),
+                date.day()
+            );
             c.text(x_date, base, Align::Left, Face::Regular, BODY, INK, &label);
             for (k, x) in Kind::ALL.iter().zip(x_kinds) {
-                c.text(x, base, Align::Right, Face::Mono, BODY, INK, &dash_if_zero(data.day_kind_total(date, *k)));
+                c.text(
+                    x,
+                    base,
+                    Align::Right,
+                    Face::Mono,
+                    BODY,
+                    INK,
+                    &dash_if_zero(data.day_kind_total(date, *k)),
+                );
             }
-            c.text(x_total, base, Align::Right, Face::MonoSemiBold, BODY, INK, &dash_if_zero(data.day_total(date)));
+            c.text(
+                x_total,
+                base,
+                Align::Right,
+                Face::MonoSemiBold,
+                BODY,
+                INK,
+                &dash_if_zero(data.day_total(date)),
+            );
             c.y += SUMMARY_ROW_H;
         }
     }
@@ -335,7 +606,15 @@ pub fn daily_summary(data: &Data, month: Month) -> Result<Vec<u8>, String> {
         "Hours in decimal, weekdays only, maximum {} h per day. Line-by-line detail is in the detailed report for the same month.",
         MAX_DAY_HOURS
     );
-    c.text(LEFT, c.y + 23.0, Align::Left, Face::Regular, 9.2, INK2, &note);
+    c.text(
+        LEFT,
+        c.y + 23.0,
+        Align::Left,
+        Face::Regular,
+        9.2,
+        INK2,
+        &note,
+    );
     c.y += 23.0;
     signatures(&mut c, 80.0);
     render(c, &format!("Timesheet · Daily summary · {}", month.label()))
@@ -349,14 +628,26 @@ fn total_row(c: &mut Canvas, label: &str, values: &[(f32, f64)], x_label: f32) {
     let base = c.y + 18.5;
     c.text(x_label, base, Align::Left, Face::SemiBold, BODY, INK, label);
     for &(x, v) in values {
-        c.text(x, base, Align::Right, Face::MonoSemiBold, BODY, INK, &fmt_report(v));
+        c.text(
+            x,
+            base,
+            Align::Right,
+            Face::MonoSemiBold,
+            BODY,
+            INK,
+            &fmt_report(v),
+        );
     }
     c.y += h;
     c.hline(LEFT, RIGHT, c.y, INK, 1.4);
 }
 
 fn dash_if_zero(v: f64) -> String {
-    if v == 0.0 { "–".into() } else { fmt_report(v) }
+    if v == 0.0 {
+        "–".into()
+    } else {
+        fmt_report(v)
+    }
 }
 
 fn ellipsize(text: &str, face: Face, size: f32, max: f32) -> String {
@@ -380,32 +671,73 @@ fn render(canvas: Canvas, title: &str) -> Result<Vec<u8>, String> {
         .map(|f| Font::new(f.bytes().into(), 0).ok_or("embedded font could not be loaded"))
         .collect::<Result<_, _>>()?;
     let font = |face: Face| fonts[face as usize].clone();
-    let fill = |c: Rgb| Fill { paint: rgb::Color::new(c.0, c.1, c.2).into(), opacity: NormalizedF32::ONE, rule: FillRule::NonZero };
+    let fill = |c: Rgb| Fill {
+        paint: rgb::Color::new(c.0, c.1, c.2).into(),
+        opacity: NormalizedF32::ONE,
+        rule: FillRule::NonZero,
+    };
 
     let mut document = Document::new();
     document.set_metadata(Metadata::new().title(title.to_owned()));
     for ops in canvas.pages {
-        let mut page = document.start_page_with(PageSettings::from_wh(PAGE_W, PAGE_H).expect("A4 size"));
+        let mut page =
+            document.start_page_with(PageSettings::from_wh(PAGE_W, PAGE_H).expect("A4 size"));
         let mut surface = page.surface();
         for op in ops {
             match op {
-                Op::Text { x, y, face, size, color, text } => {
+                Op::Text {
+                    x,
+                    y,
+                    face,
+                    size,
+                    color,
+                    text,
+                } => {
                     surface.set_stroke(None);
                     surface.set_fill(Some(fill(color)));
-                    surface.draw_text(Point::from_xy(x, y), font(face), size, &text, false, TextDirection::LeftToRight);
+                    surface.draw_text(
+                        Point::from_xy(x, y),
+                        font(face),
+                        size,
+                        &text,
+                        false,
+                        TextDirection::LeftToRight,
+                    );
                 }
-                Op::Rect { x, y, w, h, radius, fill: f, stroke } => {
-                    let Some(path) = rect_path(x, y, w, h, radius) else { continue };
+                Op::Rect {
+                    x,
+                    y,
+                    w,
+                    h,
+                    radius,
+                    fill: f,
+                    stroke,
+                } => {
+                    let Some(path) = rect_path(x, y, w, h, radius) else {
+                        continue;
+                    };
                     surface.set_fill(f.map(fill));
-                    surface.set_stroke(stroke.map(|(c, width)| Stroke { paint: rgb::Color::new(c.0, c.1, c.2).into(), width, ..Default::default() }));
+                    surface.set_stroke(stroke.map(|(c, width)| Stroke {
+                        paint: rgb::Color::new(c.0, c.1, c.2).into(),
+                        width,
+                        ..Default::default()
+                    }));
                     surface.draw_path(&path);
                 }
-                Op::HLine { x1, x2, y, color, width } => {
-                    let Some(path) = Rect::from_xywh(x1, y - width / 2.0, x2 - x1, width).and_then(|r| {
-                        let mut pb = PathBuilder::new();
-                        pb.push_rect(r);
-                        pb.finish()
-                    }) else {
+                Op::HLine {
+                    x1,
+                    x2,
+                    y,
+                    color,
+                    width,
+                } => {
+                    let Some(path) =
+                        Rect::from_xywh(x1, y - width / 2.0, x2 - x1, width).and_then(|r| {
+                            let mut pb = PathBuilder::new();
+                            pb.push_rect(r);
+                            pb.finish()
+                        })
+                    else {
                         continue;
                     };
                     surface.set_stroke(None);
@@ -417,7 +749,9 @@ fn render(canvas: Canvas, title: &str) -> Result<Vec<u8>, String> {
         surface.finish();
         page.finish();
     }
-    document.finish().map_err(|e| format!("PDF generation failed: {e:?}"))
+    document
+        .finish()
+        .map_err(|e| format!("PDF generation failed: {e:?}"))
 }
 
 /// Rectangle path with optional rounded corners; zero width or height gives a straight line.
@@ -453,19 +787,37 @@ mod tests {
     use crate::model::Entry;
 
     fn sample() -> Data {
-        let oct = Month { year: 2026, month: 10 };
+        let oct = Month {
+            year: 2026,
+            month: 10,
+        };
         let mut data = Data::default();
         for (i, d) in oct.weekdays().into_iter().enumerate() {
             let kind = Kind::ALL[i % 3];
-            data.entries.push(Entry { id: i as u64 * 2, date: d, kind, desc: format!("Ticket #{} work", 1200 + i), hours: "5".into() });
-            data.entries.push(Entry { id: i as u64 * 2 + 1, date: d, kind: Kind::Support, desc: "Support".into(), hours: "3".into() });
+            data.entries.push(Entry {
+                id: i as u64 * 2,
+                date: d,
+                kind,
+                desc: format!("Ticket #{} work", 1200 + i),
+                hours: "5".into(),
+            });
+            data.entries.push(Entry {
+                id: i as u64 * 2 + 1,
+                date: d,
+                kind: Kind::Support,
+                desc: "Support".into(),
+                hours: "3".into(),
+            });
         }
         data
     }
 
     #[test]
     fn reports_render_and_paginate() {
-        let oct = Month { year: 2026, month: 10 };
+        let oct = Month {
+            year: 2026,
+            month: 10,
+        };
         let data = sample();
         let detailed = detailed_report(&data, oct).unwrap();
         let summary = daily_summary(&data, oct).unwrap();
@@ -493,7 +845,12 @@ mod sample {
     use crate::model::{Entry, Settings};
 
     const LINES: &[(u32, Kind, &str, &str)] = &[
-        (1, Kind::Backend, "Ticket #1201 payment webhook retries", "8"),
+        (
+            1,
+            Kind::Backend,
+            "Ticket #1201 payment webhook retries",
+            "8",
+        ),
         (2, Kind::Frontend, "Ticket #1210 checkout layout", "5"),
         (2, Kind::Support, "Production incident follow-up", "3"),
         (5, Kind::Backend, "Worked on ticket #1234", "8"),
@@ -502,7 +859,12 @@ mod sample {
         (7, Kind::Backend, "Worked on ticket #456", "8"),
         (8, Kind::Frontend, "Checkout form validation", "3"),
         (8, Kind::Support, "Customer call about login issue", "1.5"),
-        (8, Kind::Backend, "Ticket #1250 order export endpoint", "3.5"),
+        (
+            8,
+            Kind::Backend,
+            "Ticket #1250 order export endpoint",
+            "3.5",
+        ),
         (9, Kind::Frontend, "Ticket #1262 account settings page", "6"),
         (9, Kind::Support, "Release support", "2"),
         (12, Kind::Backend, "Ticket #1270 search indexing", "8"),
@@ -519,8 +881,18 @@ mod sample {
         (21, Kind::Backend, "Ticket #1305 reporting queries", "5"),
         (22, Kind::Support, "Weekly support rotation", "4"),
         (22, Kind::Backend, "Ticket #1305 reporting queries", "4"),
-        (23, Kind::Backend, "Ticket #1311 invoice PDF generation", "8"),
-        (26, Kind::Backend, "Ticket #1311 invoice PDF generation", "4"),
+        (
+            23,
+            Kind::Backend,
+            "Ticket #1311 invoice PDF generation",
+            "8",
+        ),
+        (
+            26,
+            Kind::Backend,
+            "Ticket #1311 invoice PDF generation",
+            "4",
+        ),
         (26, Kind::Frontend, "Ticket #1315 invoice download UI", "4"),
         (27, Kind::Frontend, "Ticket #1315 invoice download UI", "8"),
         (28, Kind::Support, "Production incident #1320", "3"),
@@ -542,14 +914,26 @@ mod sample {
                 hours: hours.into(),
             })
             .collect();
-        let settings = Settings { consultant: String::new(), client: String::new(), project: "Website redesign".into() };
-        Data { settings, entries, next_id: LINES.len() as u64, ..Default::default() }
+        let settings = Settings {
+            consultant: String::new(),
+            client: String::new(),
+            project: "Website redesign".into(),
+        };
+        Data {
+            settings,
+            entries,
+            next_id: LINES.len() as u64,
+            ..Default::default()
+        }
     }
 
     #[test]
     fn october_totals_match_reference() {
         let data = october();
-        let oct = Month { year: 2026, month: 10 };
+        let oct = Month {
+            year: 2026,
+            month: 10,
+        };
         let totals: Vec<f64> = Kind::ALL.iter().map(|&k| data.kind_total(oct, k)).collect();
         assert_eq!(totals, vec![67.0, 88.5, 20.5]);
         assert_eq!(data.month_total(oct), 176.0);
@@ -559,9 +943,20 @@ mod sample {
     #[ignore = "writes sample PDFs for visual comparison"]
     fn write_october_samples() {
         let data = october();
-        let oct = Month { year: 2026, month: 10 };
+        let oct = Month {
+            year: 2026,
+            month: 10,
+        };
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
-        std::fs::write(dir.join("sample-detailed.pdf"), detailed_report(&data, oct).unwrap()).unwrap();
-        std::fs::write(dir.join("sample-summary.pdf"), daily_summary(&data, oct).unwrap()).unwrap();
+        std::fs::write(
+            dir.join("sample-detailed.pdf"),
+            detailed_report(&data, oct).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("sample-summary.pdf"),
+            daily_summary(&data, oct).unwrap(),
+        )
+        .unwrap();
     }
 }
