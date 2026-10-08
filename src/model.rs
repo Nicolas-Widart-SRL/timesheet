@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
@@ -142,19 +142,24 @@ impl Data {
     }
 
     pub fn day_total(&self, date: NaiveDate) -> f64 {
-        self.lines(date).map(Entry::hours).sum()
+        round_hours(self.lines(date).map(Entry::hours).sum())
     }
 
     pub fn day_kind_total(&self, date: NaiveDate, kind: Kind) -> f64 {
-        self.lines(date).filter(|e| e.kind == kind).map(Entry::hours).sum()
+        round_hours(self.lines(date).filter(|e| e.kind == kind).map(Entry::hours).sum())
+    }
+
+    /// Total of several days, e.g. a week.
+    pub fn days_total(&self, days: &[NaiveDate]) -> f64 {
+        round_hours(days.iter().map(|&d| self.day_total(d)).sum())
     }
 
     pub fn kind_total(&self, month: Month, kind: Kind) -> f64 {
-        month.weekdays().iter().map(|&d| self.day_kind_total(d, kind)).sum()
+        round_hours(month.weekdays().iter().map(|&d| self.day_kind_total(d, kind)).sum())
     }
 
     pub fn month_total(&self, month: Month) -> f64 {
-        month.weekdays().iter().map(|&d| self.day_total(d)).sum()
+        self.days_total(&month.weekdays())
     }
 
     /// A month with a day over [`MAX_DAY_HOURS`] cannot be exported.
@@ -231,21 +236,26 @@ impl Data {
     }
 }
 
-/// Lenient hour parsing: accepts "7,5" and treats invalid or negative input as 0.
+/// Lenient hour parsing: accepts "7,5", treats invalid or negative input as 0 and rounds to hundredths.
 pub fn parse_hours(text: &str) -> f64 {
     let value = text.trim().replace(',', ".").parse::<f64>().unwrap_or(0.0);
-    if value.is_finite() { value.max(0.0) } else { 0.0 }
+    if value.is_finite() { round_hours(value.max(0.0)) } else { 0.0 }
+}
+
+/// Rounds to hundredths of an hour, so sums of typed decimals compare exactly (0.1 + 4.1 + 3.8 == 8.0).
+fn round_hours(n: f64) -> f64 {
+    // `+ 0.0` turns -0.0 (the sum of an empty iterator) into 0.0.
+    (n * 100.0).round() / 100.0 + 0.0
 }
 
 /// Compact hours for the UI: "8", "1.5", "0.25".
 pub fn fmt_hours(n: f64) -> String {
-    // `+ 0.0` turns -0.0 (the sum of an empty iterator) into 0.0.
-    format!("{}", (n * 100.0).round() / 100.0 + 0.0)
+    round_hours(n).to_string()
 }
 
 /// Fixed one-decimal hours for reports: "8.0", "1.5"; keeps a second decimal only when needed.
 pub fn fmt_report(n: f64) -> String {
-    let rounded = (n * 100.0).round() / 100.0 + 0.0;
+    let rounded = round_hours(n);
     if ((rounded * 10.0).round() - rounded * 10.0).abs() < 1e-9 {
         format!("{rounded:.1}")
     } else {
@@ -373,12 +383,16 @@ pub fn weekday_long(date: NaiveDate) -> &'static str {
 pub struct Store {
     path: PathBuf,
     pub data: Data,
+    /// Set when an existing file could not be read nor moved aside: saving would overwrite it.
+    save_blocked: bool,
 }
 
 impl Store {
-    /// Loads the store. An unreadable file is moved aside (never overwritten) and a warning is returned.
+    /// Loads the store. An unparsable file is moved aside (never overwritten) and a warning is returned.
+    /// A file that can be neither read nor moved aside is left untouched: saving is blocked for this session.
     pub fn open(path: PathBuf) -> (Self, Option<String>) {
         let mut warning = None;
+        let mut save_blocked = false;
         let data = match fs::read(&path) {
             Ok(bytes) => match serde_json::from_slice(&bytes) {
                 Ok(data) => data,
@@ -386,18 +400,22 @@ impl Store {
                     let backup = path.with_extension(format!("corrupt-{}.json", chrono::Local::now().format("%Y%m%d-%H%M%S")));
                     warning = Some(match fs::rename(&path, &backup) {
                         Ok(()) => format!("Saved data could not be read ({err}). It was moved to {}.", backup.display()),
-                        Err(e) => format!("Saved data could not be read ({err}) nor moved aside ({e})."),
+                        Err(e) => {
+                            save_blocked = true;
+                            format!("Saved data could not be read ({err}) nor moved aside ({e}). Changes will not be saved.")
+                        }
                     });
                     Data::default()
                 }
             },
             Err(e) if e.kind() == io::ErrorKind::NotFound => Data::default(),
             Err(e) => {
-                warning = Some(format!("Could not read {}: {e}", path.display()));
+                save_blocked = true;
+                warning = Some(format!("Could not read {}: {e}. Changes will not be saved.", path.display()));
                 Data::default()
             }
         };
-        (Store { path, data }, warning)
+        (Store { path, data, save_blocked }, warning)
     }
 
     /// Where the signed PDF of `month` is kept, next to the data file.
@@ -430,6 +448,9 @@ impl Store {
     }
 
     pub fn save(&self) -> io::Result<()> {
+        if self.save_blocked {
+            return Err(io::Error::other("the existing data file could not be read, so it is left untouched"));
+        }
         if let Some(dir) = self.path.parent() {
             fs::create_dir_all(dir)?;
         }
@@ -438,10 +459,13 @@ impl Store {
     }
 }
 
-/// Writes to a sibling temp file, then renames over the target so a crash never leaves a half-written file.
+/// Writes to a sibling temp file, flushes it to disk, then renames it over the target
+/// so a crash never leaves a half-written file.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let tmp = path.with_extension("tmp");
-    fs::write(&tmp, bytes)?;
+    let mut file = fs::File::create(&tmp)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
     fs::rename(&tmp, path)
 }
 
@@ -524,6 +548,18 @@ mod tests {
     }
 
     #[test]
+    fn decimal_hours_sum_exactly() {
+        let data = Data {
+            entries: vec![entry(0, 1, Kind::Backend, "0.1"), entry(1, 1, Kind::Support, "4.1"), entry(2, 1, Kind::Frontend, "3.8")],
+            next_id: 3,
+            ..Default::default()
+        };
+        assert_eq!(data.day_total(d(1)), 8.0);
+        assert!(!data.has_overfull_day(Month::of(d(1))));
+        assert_eq!(parse_hours("0.125"), 0.13);
+    }
+
+    #[test]
     fn approval_flow() {
         let mut a = Approval::default();
         assert_eq!(a.status(d(8)), ApprovalStatus::NotSent);
@@ -587,5 +623,19 @@ mod tests {
         assert!(store.data.entries.is_empty());
         let moved = fs::read_dir(dir.path()).unwrap().filter_map(Result::ok).any(|e| e.file_name().to_string_lossy().contains("corrupt"));
         assert!(moved);
+    }
+
+    #[test]
+    fn unreadable_file_is_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        // A directory in place of the file cannot be read.
+        let path = dir.path().join("timesheet.json");
+        fs::create_dir(&path).unwrap();
+        let (mut store, warning) = Store::open(path.clone());
+        assert!(warning.is_some());
+        store.data.add_line(d(1));
+        assert!(store.save().is_err());
+        assert!(path.is_dir());
+        assert!(!dir.path().join("timesheet.tmp").exists(), "nothing is written");
     }
 }

@@ -114,6 +114,7 @@ impl Canvas {
         }
     }
 
+    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
     fn text(&mut self, x: f32, baseline: f32, align: Align, face: Face, size: f32, color: Rgb, text: &str) {
         let x = match align {
             Align::Left => x,
@@ -123,6 +124,7 @@ impl Canvas {
     }
 
     /// Text with extra tracking between characters (used for the small uppercase eyebrow).
+    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
     fn tracked(&mut self, x: f32, baseline: f32, face: Face, size: f32, color: Rgb, text: &str, tracking: f32) {
         let mut x = x;
         let mut buf = [0u8; 4];
@@ -137,6 +139,7 @@ impl Canvas {
         self.push(Op::HLine { x1, x2, y, color, width });
     }
 
+    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
     fn rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, fill: Option<Rgb>, stroke: Option<(Rgb, f32)>) {
         self.push(Op::Rect { x, y, w, h, radius, fill, stroke });
     }
@@ -232,7 +235,7 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
     c.hline(LEFT, RIGHT, c.y, INK, 0.8);
 
     for week in month.weeks() {
-        let week_total: f64 = week.iter().map(|&d| data.day_total(d)).sum();
+        let week_total = data.days_total(&week);
         let first_lines = data.lines(week[0]).count().max(1);
         c.ensure(ROW_H * (1 + first_lines) as f32);
         let base = c.y + 14.0;
@@ -256,6 +259,8 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
                 c.y += ROW_H;
             }
             for line in lines {
+                // Only breaks the page when a single day has more lines than a page holds.
+                c.ensure(ROW_H);
                 let base = c.y + 14.0;
                 c.swatch(x_type, base, kind_rgb(line.kind));
                 c.text(x_type + 10.5, base, Align::Left, Face::Regular, BODY, INK, line.kind.label());

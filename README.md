@@ -84,7 +84,8 @@ All data is saved automatically after each change, as JSON:
 Signed PDFs are copied next to it, in `signed/<year>-<month>.pdf`.
 
 If the file cannot be read, it is renamed to `timesheet.corrupt-<timestamp>.json` (never overwritten)
-and the app starts empty with a warning.
+and the app starts empty with a warning. If the file cannot be opened at all (for example, a permissions
+problem), it is left untouched and changes are not saved until the app is restarted.
 
 ## Fonts
 
