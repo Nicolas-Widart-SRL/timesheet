@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
@@ -383,12 +383,16 @@ pub fn weekday_long(date: NaiveDate) -> &'static str {
 pub struct Store {
     path: PathBuf,
     pub data: Data,
+    /// Set when an existing file could not be read nor moved aside: saving would overwrite it.
+    save_blocked: bool,
 }
 
 impl Store {
-    /// Loads the store. An unreadable file is moved aside (never overwritten) and a warning is returned.
+    /// Loads the store. An unparsable file is moved aside (never overwritten) and a warning is returned.
+    /// A file that can be neither read nor moved aside is left untouched: saving is blocked for this session.
     pub fn open(path: PathBuf) -> (Self, Option<String>) {
         let mut warning = None;
+        let mut save_blocked = false;
         let data = match fs::read(&path) {
             Ok(bytes) => match serde_json::from_slice(&bytes) {
                 Ok(data) => data,
@@ -396,18 +400,22 @@ impl Store {
                     let backup = path.with_extension(format!("corrupt-{}.json", chrono::Local::now().format("%Y%m%d-%H%M%S")));
                     warning = Some(match fs::rename(&path, &backup) {
                         Ok(()) => format!("Saved data could not be read ({err}). It was moved to {}.", backup.display()),
-                        Err(e) => format!("Saved data could not be read ({err}) nor moved aside ({e})."),
+                        Err(e) => {
+                            save_blocked = true;
+                            format!("Saved data could not be read ({err}) nor moved aside ({e}). Changes will not be saved.")
+                        }
                     });
                     Data::default()
                 }
             },
             Err(e) if e.kind() == io::ErrorKind::NotFound => Data::default(),
             Err(e) => {
-                warning = Some(format!("Could not read {}: {e}", path.display()));
+                save_blocked = true;
+                warning = Some(format!("Could not read {}: {e}. Changes will not be saved.", path.display()));
                 Data::default()
             }
         };
-        (Store { path, data }, warning)
+        (Store { path, data, save_blocked }, warning)
     }
 
     /// Where the signed PDF of `month` is kept, next to the data file.
@@ -440,6 +448,9 @@ impl Store {
     }
 
     pub fn save(&self) -> io::Result<()> {
+        if self.save_blocked {
+            return Err(io::Error::other("the existing data file could not be read, so it is left untouched"));
+        }
         if let Some(dir) = self.path.parent() {
             fs::create_dir_all(dir)?;
         }
@@ -448,10 +459,13 @@ impl Store {
     }
 }
 
-/// Writes to a sibling temp file, then renames over the target so a crash never leaves a half-written file.
+/// Writes to a sibling temp file, flushes it to disk, then renames it over the target
+/// so a crash never leaves a half-written file.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let tmp = path.with_extension("tmp");
-    fs::write(&tmp, bytes)?;
+    let mut file = fs::File::create(&tmp)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
     fs::rename(&tmp, path)
 }
 
@@ -609,5 +623,19 @@ mod tests {
         assert!(store.data.entries.is_empty());
         let moved = fs::read_dir(dir.path()).unwrap().filter_map(Result::ok).any(|e| e.file_name().to_string_lossy().contains("corrupt"));
         assert!(moved);
+    }
+
+    #[test]
+    fn unreadable_file_is_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        // A directory in place of the file cannot be read.
+        let path = dir.path().join("timesheet.json");
+        fs::create_dir(&path).unwrap();
+        let (mut store, warning) = Store::open(path.clone());
+        assert!(warning.is_some());
+        store.data.add_line(d(1));
+        assert!(store.save().is_err());
+        assert!(path.is_dir());
+        assert!(!dir.path().join("timesheet.tmp").exists(), "nothing is written");
     }
 }
