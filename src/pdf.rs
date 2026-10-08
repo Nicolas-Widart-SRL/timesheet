@@ -114,6 +114,7 @@ impl Canvas {
         }
     }
 
+    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
     fn text(&mut self, x: f32, baseline: f32, align: Align, face: Face, size: f32, color: Rgb, text: &str) {
         let x = match align {
             Align::Left => x,
@@ -123,6 +124,7 @@ impl Canvas {
     }
 
     /// Text with extra tracking between characters (used for the small uppercase eyebrow).
+    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
     fn tracked(&mut self, x: f32, baseline: f32, face: Face, size: f32, color: Rgb, text: &str, tracking: f32) {
         let mut x = x;
         let mut buf = [0u8; 4];
@@ -137,6 +139,7 @@ impl Canvas {
         self.push(Op::HLine { x1, x2, y, color, width });
     }
 
+    #[expect(clippy::too_many_arguments, reason = "drawing primitive: position, style and content")]
     fn rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, fill: Option<Rgb>, stroke: Option<(Rgb, f32)>) {
         self.push(Op::Rect { x, y, w, h, radius, fill, stroke });
     }
