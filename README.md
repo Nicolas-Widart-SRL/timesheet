@@ -10,6 +10,9 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
   your manager (with dates), and attach the signed PDF. A month waiting more than 5 days for a
   reply is flagged for follow-up.
 - Consultant, client and project names are set in Settings (click the avatar).
+- **Export data** and **Import data** in Settings move everything (lines, settings, approvals and
+  signed PDFs) to another computer as one JSON file. Import replaces all current data, after saving it
+  to a `timesheet.before-import-<date>.json` backup next to the data file.
 
 ## Build and run
 

@@ -498,6 +498,15 @@ fn progress_status(data: &Data, month: Month) -> (&'static str, Color32, Color32
     }
 }
 
+/// Green success or red error line under an action.
+fn note_ui(ui: &mut Ui, note: &Result<String, String>) {
+    let (msg, weight, color) = match note {
+        Ok(msg) => (msg, W::Regular, OK_FG),
+        Err(msg) => (msg, W::SemiBold, DANGER),
+    };
+    ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(13.0, weight)).color(color)).wrap());
+}
+
 fn hline(ui: &mut Ui, color: Color32) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
     ui.painter().hline(rect.x_range(), rect.center().y, Stroke::new(1.0, color));
@@ -565,6 +574,8 @@ pub struct App {
     banner: Option<String>,
     /// Outcome of the last export, for the month it covered.
     export_note: Option<(Month, Result<String, String>)>,
+    /// Outcome of the last data export or import, shown in Settings.
+    backup_note: Option<Result<String, String>>,
 }
 
 fn data_path() -> PathBuf {
@@ -592,6 +603,7 @@ impl App {
             today,
             banner,
             export_note: None,
+            backup_note: None,
         };
         app.open_month(Month::of(today));
         app
@@ -643,14 +655,62 @@ impl App {
 
     fn export_note_ui(&self, ui: &mut Ui, month: Month) {
         match &self.export_note {
-            Some((m, Ok(msg))) if *m == month => {
-                ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(13.0, W::Regular)).color(OK_FG)).wrap());
-            }
-            Some((m, Err(msg))) if *m == month => {
-                ui.add(egui::Label::new(egui::RichText::new(msg).font(sans(13.0, W::SemiBold)).color(DANGER)).wrap());
-            }
+            Some((m, note)) if *m == month => note_ui(ui, note),
             _ => {}
         }
+    }
+
+    fn export_data(&mut self) {
+        let Some(mut path) = rfd::FileDialog::new()
+            .set_title("Export data")
+            .set_file_name(format!("Timesheet backup {}.json", self.today))
+            .add_filter("JSON", &["json"])
+            .save_file()
+        else {
+            return;
+        };
+        if path.extension().is_none_or(|e| !e.eq_ignore_ascii_case("json")) {
+            path.set_extension("json");
+        }
+        let note = self
+            .store
+            .export_backup()
+            .and_then(|b| std::fs::write(&path, b))
+            .map(|()| format!("Saved {}", path.display()))
+            .map_err(|e| format!("Could not export to {}: {e}", path.display()));
+        self.backup_note = Some(note);
+    }
+
+    fn import_data(&mut self) {
+        let Some(path) = rfd::FileDialog::new().set_title("Import data").add_filter("JSON", &["json"]).pick_file() else {
+            return;
+        };
+        let confirmed = rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Warning)
+            .set_title("Replace all data?")
+            .set_description(format!(
+                "All lines, settings, approvals and signed PDFs will be replaced by the content of {}. \
+                 Your current data is first saved to a backup file next to the data file.",
+                path.display()
+            ))
+            .set_buttons(rfd::MessageButtons::OkCancelCustom("Replace".into(), "Cancel".into()))
+            .show();
+        // The Windows message-box fallback reports a custom OK button as `Ok`.
+        if !matches!(confirmed, rfd::MessageDialogResult::Ok) && confirmed != rfd::MessageDialogResult::Custom("Replace".into()) {
+            return;
+        }
+        let note = std::fs::read(&path)
+            .and_then(|bytes| self.store.import_backup(&bytes, chrono::Local::now().naive_local()))
+            .map(|previous| match previous {
+                Some(previous) => format!("Imported {}. Previous data saved to {}", path.display(), previous.display()),
+                None => format!("Imported {}", path.display()),
+            })
+            .map_err(|e| format!("Could not import {}: {e}", path.display()));
+        if note.is_ok() {
+            self.settings_draft = Some(self.store.data.settings.clone());
+            self.open_month(self.month);
+        }
+        self.backup_note = Some(note);
     }
 }
 
@@ -726,6 +786,7 @@ impl App {
                     focus_ring(ui, &response, rect, 18);
                     if response.on_hover_cursor(CursorIcon::PointingHand).on_hover_text("Settings").clicked() {
                         self.settings_draft = Some(self.store.data.settings.clone());
+                        self.backup_note = None;
                     }
                 });
             });
@@ -1211,6 +1272,8 @@ impl App {
         let Some(draft) = self.settings_draft.as_mut() else { return false };
         let mut save = false;
         let mut cancel = false;
+        let mut export = false;
+        let mut import = false;
         let frame = Frame::new().fill(WHITE).corner_radius(14).inner_margin(Margin::same(24)).stroke(Stroke::new(1.0, BORDER));
         let modal = egui::Modal::new(Id::new("settings")).frame(frame).show(ctx, |ui| {
             ui.set_width(440.0);
@@ -1244,6 +1307,13 @@ impl App {
                 )
                 .wrap(),
             );
+            ui.horizontal(|ui| {
+                export = Btn::outline("Export data…").show(ui).clicked();
+                import = Btn::outline("Import data…").show(ui).clicked();
+            });
+            if let Some(note) = &self.backup_note {
+                note_ui(ui, note);
+            }
             ui.add_space(10.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if Btn::primary("Save").min(96.0, 44.0).show(ui).clicked() {
@@ -1254,6 +1324,13 @@ impl App {
                 }
             });
         });
+        if export {
+            self.export_data();
+        }
+        if import {
+            self.import_data();
+            return false;
+        }
         if save {
             let draft = self.settings_draft.take().unwrap_or_default();
             self.store.data.settings = Settings {
