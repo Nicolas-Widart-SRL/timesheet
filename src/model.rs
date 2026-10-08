@@ -1,10 +1,12 @@
 //! Timesheet data, month calendar and aggregation rules shared by the UI and the PDF exports.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 use serde::{Deserialize, Serialize};
 
@@ -304,6 +306,13 @@ impl Month {
         format!("{}-{:02}", self.year, self.month)
     }
 
+    /// Inverse of [`Month::key`].
+    pub fn from_key(key: &str) -> Option<Self> {
+        let (year, month) = key.split_once('-')?;
+        let month = Month { year: year.parse().ok()?, month: month.parse().ok()? };
+        ((1..=12).contains(&month.month) && month.key() == key).then_some(month)
+    }
+
     /// "October 2026"
     pub fn label(self) -> String {
         format!("{} {}", self.name(), self.year)
@@ -379,6 +388,16 @@ pub fn weekday_long(date: NaiveDate) -> &'static str {
     }
 }
 
+/// Portable copy of everything the app keeps: the data file fields plus the signed PDFs,
+/// base64-encoded and keyed by [`Month::key`]. A plain data file is a valid backup without signed PDFs.
+#[derive(Serialize, Deserialize)]
+struct Backup {
+    #[serde(flatten)]
+    data: Data,
+    #[serde(default)]
+    signed_pdfs: BTreeMap<String, String>,
+}
+
 /// JSON file holding all data, written atomically after every change.
 pub struct Store {
     path: PathBuf,
@@ -445,6 +464,70 @@ impl Store {
         }
         self.data.approval_mut(month).signed_pdf = None;
         Ok(())
+    }
+
+    /// All data and signed PDFs as one JSON file. A signed copy missing on disk is left out.
+    pub fn export_backup(&self) -> io::Result<Vec<u8>> {
+        let mut signed_pdfs = BTreeMap::new();
+        for (key, approval) in &self.data.approvals {
+            let Some(month) = Month::from_key(key).filter(|_| approval.signed_pdf.is_some()) else { continue };
+            match fs::read(self.signed_pdf_path(month)) {
+                Ok(bytes) => {
+                    signed_pdfs.insert(key.clone(), BASE64.encode(bytes));
+                }
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
+            }
+        }
+        serde_json::to_vec_pretty(&Backup { data: self.data.clone(), signed_pdfs }).map_err(io::Error::other)
+    }
+
+    /// Replaces all data and signed PDFs with a backup from [`Store::export_backup`].
+    /// The backup is fully checked before anything is written. Unless the store is empty, the current
+    /// data is first written to a backup next to the data file, whose path is returned.
+    pub fn import_backup(&mut self, bytes: &[u8], now: chrono::NaiveDateTime) -> io::Result<Option<PathBuf>> {
+        let invalid = |msg: String| io::Error::new(io::ErrorKind::InvalidData, msg);
+        if self.save_blocked {
+            return Err(io::Error::other("the existing data file could not be read, so it is left untouched"));
+        }
+        let backup: Backup = serde_json::from_slice(bytes).map_err(|e| invalid(format!("not a timesheet backup ({e})")))?;
+        let mut ids = HashSet::new();
+        if let Some(e) = backup.data.entries.iter().find(|e| !ids.insert(e.id)) {
+            return Err(invalid(format!("two lines share the id {}", e.id)));
+        }
+        let mut pdfs = Vec::new();
+        for (key, encoded) in &backup.signed_pdfs {
+            let month = Month::from_key(key).ok_or_else(|| invalid(format!("invalid month \"{key}\"")))?;
+            let pdf = BASE64.decode(encoded).map_err(|e| invalid(format!("signed PDF of {key} is damaged ({e})")))?;
+            pdfs.push((month, pdf));
+        }
+
+        let previous = if self.data == Data::default() {
+            None
+        } else {
+            let previous = self.path.with_extension(format!("before-import-{}.json", now.format("%Y%m%d-%H%M%S")));
+            if let Some(dir) = previous.parent() {
+                fs::create_dir_all(dir)?;
+            }
+            write_atomic(&previous, &self.export_backup()?)?;
+            Some(previous)
+        };
+        for (month, pdf) in &pdfs {
+            let target = self.signed_pdf_path(*month);
+            if let Some(dir) = target.parent() {
+                fs::create_dir_all(dir)?;
+            }
+            write_atomic(&target, pdf)?;
+        }
+        let mut data = backup.data;
+        for (key, approval) in &mut data.approvals {
+            if Month::from_key(key).is_none_or(|m| !self.signed_pdf_path(m).exists()) {
+                approval.signed_pdf = None;
+            }
+        }
+        self.data = data;
+        self.save()?;
+        Ok(previous)
     }
 
     pub fn save(&self) -> io::Result<()> {
@@ -623,6 +706,77 @@ mod tests {
         assert!(store.data.entries.is_empty());
         let moved = fs::read_dir(dir.path()).unwrap().filter_map(Result::ok).any(|e| e.file_name().to_string_lossy().contains("corrupt"));
         assert!(moved);
+    }
+
+    #[test]
+    fn month_key_roundtrip() {
+        let oct = Month { year: 2026, month: 10 };
+        assert_eq!(Month::from_key(&oct.key()), Some(oct));
+        for bad in ["2026-13", "2026-1", "2026-00", "../x", "2026", ""] {
+            assert_eq!(Month::from_key(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn backup_moves_data_and_signed_pdfs_to_another_store() {
+        let now = d(9).and_hms_opt(10, 0, 0).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("signed.pdf");
+        fs::write(&source, b"%PDF-signed").unwrap();
+        let (mut from, _) = Store::open(dir.path().join("a").join("timesheet.json"));
+        from.data.settings.consultant = "Jane Doe".into();
+        from.data.add_line(d(1));
+        let sep = Month { year: 2026, month: 9 };
+        from.attach_signed_pdf(sep, &source, d(8)).unwrap();
+        let backup = from.export_backup().unwrap();
+
+        let (mut to, _) = Store::open(dir.path().join("b").join("timesheet.json"));
+        assert_eq!(to.import_backup(&backup, now).unwrap(), None, "an empty store needs no backup");
+        assert_eq!(to.data, from.data);
+        assert_eq!(fs::read(to.signed_pdf_path(sep)).unwrap(), b"%PDF-signed");
+        assert_eq!(Store::open(dir.path().join("b").join("timesheet.json")).0.data, from.data, "import is saved");
+
+        // Importing again keeps the replaced data in a backup that can itself be imported.
+        to.data.add_line(d(2));
+        let replaced = to.data.clone();
+        let previous = to.import_backup(&backup, now).unwrap().expect("current data is backed up");
+        assert_eq!(to.data, from.data);
+        to.import_backup(&fs::read(previous).unwrap(), now).unwrap();
+        assert_eq!(to.data, replaced);
+    }
+
+    #[test]
+    fn plain_data_file_imports_without_dangling_signed_pdf() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut data = Data::default();
+        data.add_line(d(1));
+        data.approval_mut(Month { year: 2026, month: 9 }).signed_pdf = Some("lost.pdf".into());
+        let (mut store, _) = Store::open(dir.path().join("timesheet.json"));
+        store.import_backup(&serde_json::to_vec(&data).unwrap(), d(9).into()).unwrap();
+        assert_eq!(store.data.entries, data.entries);
+        assert_eq!(store.data.approval(Month { year: 2026, month: 9 }).signed_pdf, None);
+    }
+
+    #[test]
+    fn invalid_backup_changes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("timesheet.json");
+        let (mut store, _) = Store::open(path.clone());
+        store.data.add_line(d(1));
+        store.save().unwrap();
+        let before = store.data.clone();
+        let line = r#"{"id":0,"date":"2026-10-01","kind":"backend","desc":"","hours":"8"}"#;
+        let settings = r#""settings":{"consultant":"","client":"","project":""}"#;
+        for bad in [
+            "{not json".to_owned(),
+            format!(r#"{{{settings},"entries":[{line},{line}],"next_id":1}}"#),
+            format!(r#"{{{settings},"entries":[],"next_id":0,"signed_pdfs":{{"../evil":""}}}}"#),
+            format!(r#"{{{settings},"entries":[],"next_id":0,"signed_pdfs":{{"2026-09":"%%%"}}}}"#),
+        ] {
+            assert!(store.import_backup(bad.as_bytes(), d(9).into()).is_err(), "{bad}");
+            assert_eq!(store.data, before);
+        }
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1, "nothing is written");
     }
 
     #[test]
