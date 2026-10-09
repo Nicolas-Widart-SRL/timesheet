@@ -272,7 +272,10 @@ fn header(c: &mut Canvas, data: &Data, month: Month, eyebrow: &str) {
     let rows = [
         ("Consultant", s.consultant_or_placeholder().to_owned()),
         ("Period", month.period_label()),
-        ("Workdays", month.weekdays().len().to_string()),
+        (
+            "Workdays",
+            data.workdays(&month.weekdays()).len().to_string(),
+        ),
     ];
     let value_w = rows
         .iter()
@@ -423,6 +426,7 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
         c.hline(LEFT, RIGHT, c.y, INK, 0.8);
 
         for (i, &date) in week.iter().enumerate() {
+            let off = data.day_off_label(date);
             let lines: Vec<_> = data.lines(date).collect();
             c.ensure(ROW_H * lines.len().max(1) as f32);
             if i > 0 && !c.at_page_top() {
@@ -448,15 +452,11 @@ pub fn detailed_report(data: &Data, month: Month) -> Result<Vec<u8>, String> {
                 &fmt_report(data.day_total(date)),
             );
             if lines.is_empty() {
-                c.text(
-                    x_desc,
-                    base,
-                    Align::Left,
-                    Face::Regular,
-                    BODY,
-                    MUTED,
-                    "No time recorded",
-                );
+                let (face, color, note) = match &off {
+                    Some(label) => (Face::SemiBold, INK2, label.as_str()),
+                    None => (Face::Regular, MUTED, "No time recorded"),
+                };
+                c.text(x_desc, base, Align::Left, face, BODY, color, note);
                 c.y += ROW_H;
             }
             for line in lines {
@@ -521,6 +521,8 @@ pub fn daily_summary(data: &Data, month: Month) -> Result<Vec<u8>, String> {
         LEFT + width * 0.639,
         LEFT + width * 0.843,
     ];
+    // Day-off labels, in place of the task type columns.
+    let x_off = LEFT + width * 0.2;
     let total_bg = LEFT + width * 0.858;
     let x_total = RIGHT - 8.0;
     let total_col =
@@ -568,16 +570,21 @@ pub fn daily_summary(data: &Data, month: Month) -> Result<Vec<u8>, String> {
                 date.day()
             );
             c.text(x_date, base, Align::Left, Face::Regular, BODY, INK, &label);
-            for (k, x) in Kind::ALL.iter().zip(x_kinds) {
-                c.text(
-                    x,
-                    base,
-                    Align::Right,
-                    Face::Mono,
-                    BODY,
-                    INK,
-                    &dash_if_zero(data.day_kind_total(date, *k)),
-                );
+            if let Some(off) = data.day_off_label(date) {
+                // Spans the task type columns, empty on a day off.
+                c.text(x_off, base, Align::Left, Face::SemiBold, BODY, INK2, &off);
+            } else {
+                for (k, x) in Kind::ALL.iter().zip(x_kinds) {
+                    c.text(
+                        x,
+                        base,
+                        Align::Right,
+                        Face::Mono,
+                        BODY,
+                        INK,
+                        &dash_if_zero(data.day_kind_total(date, *k)),
+                    );
+                }
             }
             c.text(
                 x_total,
@@ -784,7 +791,7 @@ pub fn file_name(month: Month, report: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::Entry;
+    use crate::model::{DayOff, Entry};
 
     fn sample() -> Data {
         let oct = Month {
@@ -818,7 +825,9 @@ mod tests {
             year: 2026,
             month: 10,
         };
-        let data = sample();
+        let mut data = sample();
+        data.entries.retain(|e| e.date.day() != 5);
+        data.set_day_off(oct.first_day().with_day(5).unwrap(), Some(DayOff::Leave));
         let detailed = detailed_report(&data, oct).unwrap();
         let summary = daily_summary(&data, oct).unwrap();
         assert!(detailed.starts_with(b"%PDF"));
@@ -918,6 +927,7 @@ mod sample {
             consultant: String::new(),
             client: String::new(),
             project: "Website redesign".into(),
+            country: None,
         };
         Data {
             settings,

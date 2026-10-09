@@ -11,8 +11,9 @@ use eframe::egui::{
 };
 
 use crate::fonts;
+use crate::holidays::Country;
 use crate::model::{
-    Approval, ApprovalStatus, Data, Kind, MAX_DAY_HOURS, Month, Settings, Store, day_range,
+    Approval, ApprovalStatus, Data, DayOff, Kind, MAX_DAY_HOURS, Month, Settings, Store, day_range,
     fmt_hours, weekday_long, weekday_short,
 };
 use crate::pdf;
@@ -649,11 +650,7 @@ fn open_path(path: &Path) -> std::io::Result<()> {
 fn progress_status(data: &Data, month: Month) -> (&'static str, Color32, Color32) {
     if data.has_overfull_day(month) {
         ("Needs fixes", DANGER_SOFT, DANGER)
-    } else if month
-        .weekdays()
-        .iter()
-        .all(|&d| data.day_total(d) >= MAX_DAY_HOURS)
-    {
+    } else if data.open_days(&month.weekdays()).is_empty() {
         ("Complete", OK_SOFT, OK_FG)
     } else if data.month_total(month) > 0.0 {
         ("In progress", CHIP, INK2)
@@ -730,6 +727,7 @@ enum Action {
     Add(NaiveDate),
     Copy { from: NaiveDate, to: NaiveDate },
     Remove(u64),
+    SetDayOff(NaiveDate, Option<DayOff>),
 }
 
 /// Past-months actions that need dialogs or file access, run after drawing the card.
@@ -1148,6 +1146,7 @@ impl App {
                     Action::Add(d) => data.add_line(d),
                     Action::Copy { from, to } => data.copy_day(from, to),
                     Action::Remove(id) => data.remove_line(id),
+                    Action::SetDayOff(d, off) => data.set_day_off(d, off),
                 }
             }
         };
@@ -1196,14 +1195,10 @@ impl App {
     fn sidebar(&mut self, ui: &mut Ui, weeks: &[Vec<NaiveDate>]) {
         let month = self.month;
         let data = self.data();
-        let days = month.weekdays();
-        let open: Vec<NaiveDate> = days
-            .iter()
-            .copied()
-            .filter(|&d| data.day_total(d) < MAX_DAY_HOURS)
-            .collect();
+        let days = data.workdays(&month.weekdays());
+        let open = data.open_days(&days);
         let any_over = data.has_overfull_day(month);
-        let target = month.target_hours();
+        let target = data.target_hours(&days);
         let total = data.month_total(month);
         let by_kind: Vec<(Kind, f64)> = Kind::ALL
             .iter()
@@ -1456,7 +1451,7 @@ impl App {
     fn current_month_card(&self, ui: &mut Ui, month: Month) -> bool {
         let data = self.data();
         let total = data.month_total(month);
-        let target = month.target_hours();
+        let target = data.target_hours(&month.weekdays());
         let (status, bg, fg) = progress_status(data, month);
         let frame = Frame::new()
             .fill(WHITE)
@@ -1568,7 +1563,8 @@ impl App {
                             0.0,
                             egui::TextFormat::simple(mono(14.0, true), INK),
                         );
-                        let days = format!(" · {} workdays", month.weekdays().len());
+                        let workdays = data.workdays(&month.weekdays()).len();
+                        let days = format!(" · {workdays} workdays");
                         job.append(
                             &days,
                             0.0,
@@ -1789,6 +1785,31 @@ impl App {
                     );
                     ui.add_space(8.0);
                 }
+                text(ui, "Public holidays", sans(14.0, W::SemiBold), INK2);
+                let country_label = |c: Option<Country>| c.map_or("None", Country::label);
+                egui::ComboBox::from_id_salt("country")
+                    .selected_text(
+                        egui::RichText::new(country_label(draft.country))
+                            .font(sans(15.0, W::Regular))
+                            .color(INK),
+                    )
+                    .width(ui.available_width())
+                    .show_ui(ui, |ui| {
+                        for c in std::iter::once(None).chain(Country::ALL.map(Some)) {
+                            ui.selectable_value(&mut draft.country, c, country_label(c));
+                        }
+                    })
+                    .response
+                    .widget_info(|| {
+                        WidgetInfo::labeled(WidgetType::ComboBox, true, "Public holidays")
+                    });
+                text(
+                    ui,
+                    "Marked as days off unless you mark them as workdays.",
+                    sans(13.0, W::Regular),
+                    MUTED,
+                );
+                ui.add_space(8.0);
                 ui.add(
                     egui::Label::new(
                         egui::RichText::new(format!(
@@ -1830,6 +1851,7 @@ impl App {
                 consultant: draft.consultant.trim().to_owned(),
                 client: draft.client.trim().to_owned(),
                 project: draft.project.trim().to_owned(),
+                country: draft.country,
             };
             return true;
         }
@@ -1852,7 +1874,7 @@ fn week_chip(
     width: f32,
 ) -> Response {
     let total = data.days_total(week);
-    let target = week.len() as f64 * MAX_DAY_HOURS;
+    let target = data.target_hours(week);
     let over = week.iter().any(|&d| data.day_total(d) > MAX_DAY_HOURS);
     let (status, status_color, bar_color) = if over {
         ("Over", DANGER, DANGER)
@@ -1924,6 +1946,10 @@ fn week_chip(
 /// One weekday card with its lines. Edits apply directly; structural changes are queued in `actions`.
 /// Returns true when a line was edited.
 fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Action>) -> bool {
+    if let Some(label) = data.day_off_label(date) {
+        day_off_card(ui, date, &label, actions);
+        return false;
+    }
     let total = data.day_total(date);
     let left = MAX_DAY_HOURS - total;
     let over = total > MAX_DAY_HOURS;
@@ -1968,17 +1994,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 16.0;
-                    ui.horizontal(|ui| {
-                        ui.set_min_width(140.0);
-                        ui.spacing_mut().item_spacing.x = 5.0;
-                        text(ui, weekday_short(date), sans(17.0, W::Bold), INK);
-                        text(
-                            ui,
-                            format!("{} {}", Month::of(date).short_name(), date.day()),
-                            sans(17.0, W::Medium),
-                            MUTED,
-                        );
-                    });
+                    day_heading(ui, date);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         pill(
                             ui,
@@ -2029,6 +2045,16 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                     actions.push(Action::Copy { from, to: date });
                                 }
                             }
+                            let day_off = Btn::outline("Day off…")
+                                .a11y(format!("Mark {day_name} as a day off"))
+                                .show(ui);
+                            egui::Popup::menu(&day_off).show(|ui| {
+                                for off in DayOff::ALL {
+                                    if Btn::base(off.label()).show(ui).clicked() {
+                                        actions.push(Action::SetDayOff(date, Some(off)));
+                                    }
+                                }
+                            });
                         });
                     });
                 });
@@ -2190,6 +2216,55 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
             });
     });
     dirty
+}
+
+/// "Mon Oct 5" at the start of a day card header.
+fn day_heading(ui: &mut Ui, date: NaiveDate) {
+    ui.horizontal(|ui| {
+        ui.set_min_width(140.0);
+        ui.spacing_mut().item_spacing.x = 5.0;
+        text(ui, weekday_short(date), sans(17.0, W::Bold), INK);
+        text(
+            ui,
+            format!("{} {}", Month::of(date).short_name(), date.day()),
+            sans(17.0, W::Medium),
+            MUTED,
+        );
+    });
+}
+
+/// Weekday marked as a day off: no lines, 0 h toward the target.
+fn day_off_card(ui: &mut Ui, date: NaiveDate, label: &str, actions: &mut Vec<Action>) {
+    card(ui, BORDER, Margin::symmetric(20, 14), |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            day_heading(ui, date);
+            pill(
+                ui,
+                label,
+                ACCENT_SOFT,
+                ACCENT_DARK,
+                sans(13.0, W::SemiBold),
+                vec2(10.0, 4.0),
+                99,
+            );
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if Btn::outline("Mark as workday")
+                    .a11y(format!("Mark {} as a workday", weekday_long(date)))
+                    .show(ui)
+                    .clicked()
+                {
+                    actions.push(Action::SetDayOff(date, None));
+                }
+                text(
+                    ui,
+                    "Not counted in the target",
+                    sans(14.0, W::Regular),
+                    MUTED,
+                );
+            });
+        });
+    });
 }
 
 /// Saved signed copy: the name opens it, the cross removes it.
