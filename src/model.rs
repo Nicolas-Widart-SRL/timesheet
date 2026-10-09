@@ -85,6 +85,31 @@ pub struct Settings {
     /// Its public holidays are days off unless marked otherwise.
     #[serde(default)]
     pub country: Option<Country>,
+    #[serde(default)]
+    pub appearance: Appearance,
+}
+
+/// Light or dark colors for the app window. PDFs always use the light palette.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Appearance {
+    /// Follows the operating system.
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Appearance {
+    pub const ALL: [Appearance; 3] = [Appearance::System, Appearance::Light, Appearance::Dark];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Appearance::System => "System",
+            Appearance::Light => "Light",
+            Appearance::Dark => "Dark",
+        }
+    }
 }
 
 impl Settings {
@@ -1027,6 +1052,25 @@ mod tests {
         )
         .unwrap();
         assert!(data.approvals.is_empty());
+        assert_eq!(data.settings.appearance, Appearance::System);
+    }
+
+    #[test]
+    fn appearance_is_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("timesheet.json");
+        let (mut store, _) = Store::open(path.clone());
+        store.data.settings.appearance = Appearance::Dark;
+        store.save().unwrap();
+        assert!(
+            fs::read_to_string(&path)
+                .unwrap()
+                .contains(r#""appearance": "dark""#)
+        );
+        assert_eq!(
+            Store::open(path).0.data.settings.appearance,
+            Appearance::Dark
+        );
     }
 
     #[test]
