@@ -9,7 +9,12 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
 - **Past months** tracks each closed month: export both PDFs, tick when sent to and approved by
   your manager (with dates), and attach the signed PDF. A month waiting more than 5 days for a
   reply is flagged for follow-up.
-- Consultant, client and project names are set in Settings (click the avatar).
+- An empty weekday can be marked as a day off (**Public holiday**, **Leave**, **Sick leave** or
+  **Unpaid leave**). A day off counts 0 h, so the month and week targets drop by 8 h, and both PDFs
+  show it as a labelled row.
+- Consultant, client and project names are set in Settings (click the avatar). Choosing a country
+  there (Belgium) marks its public holidays as days off; **Mark as workday** overrides one. Holidays
+  are computed locally, without network access.
 - **Export data** and **Import data** in Settings move everything (lines, settings, approvals and
   signed PDFs) to another computer as one JSON file. Import replaces all current data, after saving it
   to a `timesheet.before-import-<date>.json` backup next to the data file.

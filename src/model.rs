@@ -10,6 +10,8 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 use serde::{Deserialize, Serialize};
 
+use crate::holidays::Country;
+
 /// A day cannot hold more than this many hours.
 pub const MAX_DAY_HOURS: f64 = 8.0;
 
@@ -36,6 +38,29 @@ impl Kind {
     }
 }
 
+/// Why a weekday is not worked. A day off counts 0 h toward the target.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum DayOff {
+    Holiday,
+    Leave,
+    Sick,
+    Unpaid,
+}
+
+impl DayOff {
+    pub const ALL: [DayOff; 4] = [DayOff::Holiday, DayOff::Leave, DayOff::Sick, DayOff::Unpaid];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            DayOff::Holiday => "Public holiday",
+            DayOff::Leave => "Leave",
+            DayOff::Sick => "Sick leave",
+            DayOff::Unpaid => "Unpaid leave",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Entry {
     pub id: u64,
@@ -57,6 +82,9 @@ pub struct Settings {
     pub consultant: String,
     pub client: String,
     pub project: String,
+    /// Its public holidays are days off unless marked otherwise.
+    #[serde(default)]
+    pub country: Option<Country>,
 }
 
 impl Settings {
@@ -143,6 +171,9 @@ pub struct Data {
     /// Keyed by [`Month::key`].
     #[serde(default)]
     pub approvals: BTreeMap<String, Approval>,
+    /// Days marked by the user. `None` keeps a public holiday of [`Settings::country`] as a workday.
+    #[serde(default)]
+    pub days_off: BTreeMap<NaiveDate, Option<DayOff>>,
 }
 
 impl Data {
@@ -180,6 +211,61 @@ impl Data {
 
     pub fn month_total(&self, month: Month) -> f64 {
         self.days_total(&month.weekdays())
+    }
+
+    /// The user's mark for `date`, else [`DayOff::Holiday`] for a public holiday.
+    /// A day with lines is always a workday.
+    pub fn day_off(&self, date: NaiveDate) -> Option<DayOff> {
+        if self.lines(date).next().is_some() {
+            return None;
+        }
+        match self.days_off.get(&date) {
+            Some(&mark) => mark,
+            None => self.holiday_name(date).map(|_| DayOff::Holiday),
+        }
+    }
+
+    fn holiday_name(&self, date: NaiveDate) -> Option<&'static str> {
+        self.settings.country.and_then(|c| c.holiday(date))
+    }
+
+    /// "Public holiday · Christmas Day", or the plain label of the mark.
+    pub fn day_off_label(&self, date: NaiveDate) -> Option<String> {
+        let off = self.day_off(date)?;
+        Some(match self.holiday_name(date) {
+            Some(name) if off == DayOff::Holiday => format!("{} · {name}", off.label()),
+            _ => off.label().to_owned(),
+        })
+    }
+
+    /// Marks `date` as a day off, or as a workday with `None`.
+    pub fn set_day_off(&mut self, date: NaiveDate, off: Option<DayOff>) {
+        if off.is_some() || self.holiday_name(date).is_some() {
+            self.days_off.insert(date, off);
+        } else {
+            self.days_off.remove(&date);
+        }
+    }
+
+    /// The days of `days` that are not days off.
+    pub fn workdays(&self, days: &[NaiveDate]) -> Vec<NaiveDate> {
+        days.iter()
+            .copied()
+            .filter(|&d| self.day_off(d).is_none())
+            .collect()
+    }
+
+    /// Workdays of `days` still under [`MAX_DAY_HOURS`].
+    pub fn open_days(&self, days: &[NaiveDate]) -> Vec<NaiveDate> {
+        self.workdays(days)
+            .into_iter()
+            .filter(|&d| self.day_total(d) < MAX_DAY_HOURS)
+            .collect()
+    }
+
+    /// Hours expected over `days`: [`MAX_DAY_HOURS`] per workday.
+    pub fn target_hours(&self, days: &[NaiveDate]) -> f64 {
+        self.workdays(days).len() as f64 * MAX_DAY_HOURS
     }
 
     /// A month with a day over [`MAX_DAY_HOURS`] cannot be exported.
@@ -416,10 +502,6 @@ impl Month {
             }
         }
         weeks
-    }
-
-    pub fn target_hours(self) -> f64 {
-        self.weekdays().len() as f64 * MAX_DAY_HOURS
     }
 
     /// "Oct 1 – 30, 2026": first to last weekday.
@@ -706,7 +788,7 @@ mod tests {
             month: 10,
         };
         assert_eq!(oct.weekdays().len(), 22);
-        assert_eq!(oct.target_hours(), 176.0);
+        assert_eq!(Data::default().target_hours(&oct.weekdays()), 176.0);
         assert_eq!(oct.period_label(), "Oct 1 – 30, 2026");
         let weeks = oct.weeks();
         assert_eq!(weeks.len(), 5);
@@ -832,6 +914,61 @@ mod tests {
     }
 
     #[test]
+    fn marked_day_lowers_the_target_and_the_month_can_be_completed() {
+        let oct = Month::of(d(1));
+        let mut data = Data::default();
+        data.set_day_off(d(5), Some(DayOff::Leave));
+        assert_eq!(data.target_hours(&oct.weekdays()), 21.0 * 8.0);
+        let week_targets: f64 = oct.weeks().iter().map(|w| data.target_hours(w)).sum();
+        assert_eq!(week_targets, data.target_hours(&oct.weekdays()));
+        assert_eq!(data.target_hours(&oct.weeks()[1]), 4.0 * 8.0);
+
+        for date in data.workdays(&oct.weekdays()) {
+            data.add_line(date);
+        }
+        assert!(data.open_days(&oct.weekdays()).is_empty());
+        assert_eq!(data.month_total(oct), data.target_hours(&oct.weekdays()));
+        assert_eq!(data.day_off_label(d(5)).as_deref(), Some("Leave"));
+
+        data.set_day_off(d(5), None);
+        assert_eq!(data.day_off(d(5)), None);
+        assert!(data.days_off.is_empty());
+        assert_eq!(data.open_days(&oct.weekdays()), vec![d(5)]);
+    }
+
+    #[test]
+    fn public_holidays_of_the_chosen_country_are_days_off() {
+        let nov11 = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
+        let nov = Month::of(nov11);
+        let mut data = Data::default();
+        assert_eq!(data.day_off(nov11), None);
+
+        data.settings.country = Some(Country::Belgium);
+        assert_eq!(data.day_off(nov11), Some(DayOff::Holiday));
+        assert_eq!(
+            data.day_off_label(nov11).as_deref(),
+            Some("Public holiday · Armistice Day")
+        );
+        // Nov 2026: 21 weekdays, Nov 11 is a Wednesday (Nov 1 is a Sunday).
+        assert_eq!(data.target_hours(&nov.weekdays()), 20.0 * 8.0);
+
+        // A holiday can be worked: marking it as a workday is remembered.
+        data.set_day_off(nov11, None);
+        assert_eq!(data.day_off(nov11), None);
+        assert_eq!(data.target_hours(&nov.weekdays()), 21.0 * 8.0);
+        data.set_day_off(nov11, Some(DayOff::Sick));
+        assert_eq!(data.day_off_label(nov11).as_deref(), Some("Sick leave"));
+
+        // Time entered on a day off makes it a workday.
+        data.add_line(nov11);
+        assert_eq!(data.day_off(nov11), None);
+        let mut data = Data::default();
+        data.add_line(nov11);
+        data.settings.country = Some(Country::Belgium);
+        assert_eq!(data.day_off(nov11), None);
+    }
+
+    #[test]
     fn approval_flow() {
         let mut a = Approval::default();
         assert_eq!(a.status(d(8)), ApprovalStatus::NotSent);
@@ -941,7 +1078,11 @@ mod tests {
         fs::write(&source, b"%PDF-signed").unwrap();
         let (mut from, _) = Store::open(dir.path().join("a").join("timesheet.json"));
         from.data.settings.consultant = "Jane Doe".into();
+        from.data.settings.country = Some(Country::Belgium);
         from.data.add_line(d(1));
+        from.data.set_day_off(d(2), Some(DayOff::Unpaid));
+        from.data
+            .set_day_off(NaiveDate::from_ymd_opt(2026, 11, 11).unwrap(), None);
         let sep = Month {
             year: 2026,
             month: 9,
@@ -956,6 +1097,7 @@ mod tests {
             "an empty store needs no backup"
         );
         assert_eq!(to.data, from.data);
+        assert_eq!(to.data.days_off.len(), 2);
         assert_eq!(fs::read(to.signed_pdf_path(sep)).unwrap(), b"%PDF-signed");
         assert_eq!(
             Store::open(dir.path().join("b").join("timesheet.json"))

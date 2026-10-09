@@ -1,6 +1,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod fonts;
+mod holidays;
 mod model;
 mod pdf;
 mod ui;
