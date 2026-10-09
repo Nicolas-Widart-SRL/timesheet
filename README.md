@@ -15,6 +15,8 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
 - Consultant, client and project names are set in Settings (click the avatar). Choosing a country
   there (Belgium) marks its public holidays as days off; **Mark as workday** overrides one. Holidays
   are computed locally, without network access.
+- **Appearance** in Settings picks **System** (default, follows the OS light or dark mode), **Light** or
+  **Dark**. Both themes meet WCAG 2.2 AA contrast. PDFs always use the light colors.
 - **Export data** and **Import data** in Settings move everything (lines, settings, approvals and
   signed PDFs) to another computer as one JSON file. Import replaces all current data, after saving it
   to a `timesheet.before-import-<date>.json` backup next to the data file.

@@ -13,49 +13,164 @@ use eframe::egui::{
 use crate::fonts;
 use crate::holidays::Country;
 use crate::model::{
-    Approval, ApprovalStatus, Data, DayOff, Kind, MAX_DAY_HOURS, Month, Settings, Store, day_range,
-    fmt_hours, weekday_long, weekday_short,
+    Appearance, Approval, ApprovalStatus, Data, DayOff, Kind, MAX_DAY_HOURS, Month, Settings,
+    Store, day_range, fmt_hours, weekday_long, weekday_short,
 };
 use crate::pdf;
 
-// Palette from the mockup.
-const BG: Color32 = Color32::from_rgb(0xF4, 0xF5, 0xF7);
-const WHITE: Color32 = Color32::WHITE;
-const INK: Color32 = Color32::from_rgb(0x15, 0x17, 0x1C);
-const INK2: Color32 = Color32::from_rgb(0x3F, 0x44, 0x52);
-const MUTED: Color32 = Color32::from_rgb(0x5B, 0x61, 0x70);
-const BORDER: Color32 = Color32::from_rgb(0xE2, 0xE4, 0xE9);
-const INPUT_BORDER: Color32 = Color32::from_rgb(0xD5, 0xD8, 0xDF);
-const HOVER_BORDER: Color32 = Color32::from_rgb(0xB9, 0xBE, 0xC9);
-const DIVIDER: Color32 = Color32::from_rgb(0xEE, 0xF0, 0xF3);
-const CHIP: Color32 = Color32::from_rgb(0xF0, 0xF1, 0xF4);
-const ACCENT: Color32 = Color32::from_rgb(0x24, 0x46, 0xD8);
-const ACCENT_DARK: Color32 = Color32::from_rgb(0x16, 0x30, 0x9E);
-const ACCENT_SOFT: Color32 = Color32::from_rgb(0xE8, 0xEC, 0xFC);
-const ACCENT_TINT: Color32 = Color32::from_rgb(0xF5, 0xF7, 0xFF);
-const DANGER: Color32 = Color32::from_rgb(0xB4, 0x23, 0x18);
-const DANGER_SOFT: Color32 = Color32::from_rgb(0xFD, 0xEC, 0xEA);
-const OK: Color32 = Color32::from_rgb(0x0F, 0x7B, 0x6C);
-const OK_FG: Color32 = Color32::from_rgb(0x0A, 0x52, 0x48);
-const OK_SOFT: Color32 = Color32::from_rgb(0xDD, 0xF3, 0xEF);
-const OK_BORDER: Color32 = Color32::from_rgb(0xBF, 0xE3, 0xDC);
-const OK_TINT: Color32 = Color32::from_rgb(0xF1, 0xFA, 0xF8);
-const WARN: Color32 = Color32::from_rgb(0x8A, 0x3C, 0x08);
-const WARN_SOFT: Color32 = Color32::from_rgb(0xFF, 0xF1, 0xE6);
-const WARN_BORDER: Color32 = Color32::from_rgb(0xE9, 0xB4, 0x8C);
-const DISABLED: Color32 = Color32::from_rgb(0x8A, 0x8F, 0x9C);
+/// Colors of one theme. Text pairs meet WCAG 2.2 AA contrast (see the tests).
+struct Palette {
+    /// Window background, behind cards.
+    bg: Color32,
+    /// Cards, top bar, inputs and dialogs.
+    surface: Color32,
+    ink: Color32,
+    ink2: Color32,
+    muted: Color32,
+    border: Color32,
+    /// Outline-button stroke. Decorative: the label identifies the button.
+    button_border: Color32,
+    /// Boundary of text fields, combo boxes and date buttons (3:1 against `surface`).
+    field_border: Color32,
+    hover_border: Color32,
+    divider: Color32,
+    chip: Color32,
+    accent: Color32,
+    /// Accent text on `accent_soft`, and hovered primary buttons.
+    accent_strong: Color32,
+    accent_soft: Color32,
+    accent_tint: Color32,
+    /// Text and icons on `accent`, `ok` and task-type fills.
+    on_accent: Color32,
+    selection: Color32,
+    danger: Color32,
+    danger_soft: Color32,
+    ok: Color32,
+    ok_fg: Color32,
+    ok_soft: Color32,
+    ok_border: Color32,
+    ok_tint: Color32,
+    warn: Color32,
+    warn_soft: Color32,
+    warn_border: Color32,
+    disabled: Color32,
+    /// Swatches and bars, in [`Kind::ALL`] order.
+    kinds: [Color32; 3],
+    /// Fills of selected task-type toggles, in [`Kind::ALL`] order.
+    kind_toggles: [Color32; 3],
+}
 
-fn kind_color(kind: Kind) -> Color32 {
+const fn pdf_kind(kind: Kind) -> Color32 {
     let (r, g, b) = pdf::kind_rgb(kind);
     Color32::from_rgb(r, g, b)
 }
 
-/// Fill of a selected task-type toggle (backend is darkened for text contrast).
-fn kind_toggle_fill(kind: Kind) -> Color32 {
-    match kind {
-        Kind::Backend => Color32::from_rgb(0xA4, 0x4A, 0x0C),
-        k => kind_color(k),
+const fn hex(v: u32) -> Color32 {
+    Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8)
+}
+
+/// Palette from the mockup; task-type colors are shared with the PDFs.
+const LIGHT: Palette = Palette {
+    bg: hex(0xF4F5F7),
+    surface: Color32::WHITE,
+    ink: hex(0x15171C),
+    ink2: hex(0x3F4452),
+    muted: hex(0x5B6170),
+    border: hex(0xE2E4E9),
+    button_border: hex(0xD5D8DF),
+    field_border: hex(0x8C919E),
+    hover_border: hex(0xB9BEC9),
+    divider: hex(0xEEF0F3),
+    chip: hex(0xF0F1F4),
+    accent: hex(0x2446D8),
+    accent_strong: hex(0x16309E),
+    accent_soft: hex(0xE8ECFC),
+    accent_tint: hex(0xF5F7FF),
+    on_accent: Color32::WHITE,
+    selection: hex(0xC9D3FA),
+    danger: hex(0xB42318),
+    danger_soft: hex(0xFDECEA),
+    ok: hex(0x0F7B6C),
+    ok_fg: hex(0x0A5248),
+    ok_soft: hex(0xDDF3EF),
+    ok_border: hex(0xBFE3DC),
+    ok_tint: hex(0xF1FAF8),
+    warn: hex(0x8A3C08),
+    warn_soft: hex(0xFFF1E6),
+    warn_border: hex(0xE9B48C),
+    disabled: hex(0x8A8F9C),
+    kinds: [
+        pdf_kind(Kind::Frontend),
+        pdf_kind(Kind::Backend),
+        pdf_kind(Kind::Support),
+    ],
+    // Backend is darkened for white text.
+    kind_toggles: [
+        pdf_kind(Kind::Frontend),
+        hex(0xA44A0C),
+        pdf_kind(Kind::Support),
+    ],
+};
+
+/// Same hues as [`LIGHT`], lightened to read on dark surfaces; fills carry dark text.
+const DARK: Palette = Palette {
+    bg: hex(0x111318),
+    surface: hex(0x1A1D24),
+    ink: hex(0xE8EAEF),
+    ink2: hex(0xC3C7D1),
+    muted: hex(0x9BA1AF),
+    border: hex(0x2E333D),
+    button_border: hex(0x3B414D),
+    field_border: hex(0x6B7280),
+    hover_border: hex(0x5A6170),
+    divider: hex(0x262A33),
+    chip: hex(0x272B35),
+    accent: hex(0x8AA4FF),
+    accent_strong: hex(0xB4C5FF),
+    accent_soft: hex(0x243055),
+    accent_tint: hex(0x1D2337),
+    on_accent: hex(0x0E1220),
+    selection: hex(0x2B3766),
+    danger: hex(0xFF8F84),
+    danger_soft: hex(0x3D1D1B),
+    ok: hex(0x45C7B2),
+    ok_fg: hex(0x7EE0CE),
+    ok_soft: hex(0x15362F),
+    ok_border: hex(0x245049),
+    ok_tint: hex(0x14272A),
+    warn: hex(0xF4AA6E),
+    warn_soft: hex(0x3A2816),
+    warn_border: hex(0x8C5B30),
+    disabled: hex(0x6B7180),
+    kinds: [hex(0x8AA4FF), hex(0xF0955E), hex(0x45C7B2)],
+    kind_toggles: [hex(0x8AA4FF), hex(0xF0955E), hex(0x45C7B2)],
+};
+
+impl Palette {
+    fn of(visuals: &egui::Visuals) -> &'static Palette {
+        if visuals.dark_mode { &DARK } else { &LIGHT }
     }
+
+    fn kind(&self, kind: Kind) -> Color32 {
+        self.kinds[kind as usize]
+    }
+
+    fn kind_toggle(&self, kind: Kind) -> Color32 {
+        self.kind_toggles[kind as usize]
+    }
+}
+
+fn theme_preference(appearance: Appearance) -> egui::ThemePreference {
+    match appearance {
+        Appearance::System => egui::ThemePreference::System,
+        Appearance::Light => egui::ThemePreference::Light,
+        Appearance::Dark => egui::ThemePreference::Dark,
+    }
+}
+
+/// Palette of the theme `ui` is drawn with.
+fn colors(ui: &Ui) -> &'static Palette {
+    Palette::of(ui.visuals())
 }
 
 #[derive(Clone, Copy)]
@@ -124,48 +239,55 @@ fn setup_fonts(ctx: &egui::Context) {
     ctx.set_fonts(defs);
 }
 
+/// Styles both themes; [`App::ui`] picks one from [`Settings::appearance`].
 fn setup_style(ctx: &egui::Context) {
-    ctx.set_theme(egui::Theme::Light);
-    ctx.all_styles_mut(|style| {
-        style
-            .text_styles
-            .insert(egui::TextStyle::Body, sans(15.0, W::Regular));
-        style
-            .text_styles
-            .insert(egui::TextStyle::Button, sans(15.0, W::Regular));
-        style
-            .text_styles
-            .insert(egui::TextStyle::Heading, sans(30.0, W::Bold));
-        style
-            .text_styles
-            .insert(egui::TextStyle::Small, sans(13.0, W::Regular));
-        style.spacing.item_spacing = vec2(8.0, 8.0);
-        let v = &mut style.visuals;
-        v.panel_fill = BG;
-        v.window_fill = WHITE;
-        v.extreme_bg_color = WHITE;
-        v.override_text_color = None;
-        v.selection.bg_fill = Color32::from_rgb(0xC9, 0xD3, 0xFA);
-        v.selection.stroke = Stroke::new(2.0, ACCENT);
-        v.text_cursor.stroke = Stroke::new(2.0, ACCENT);
-        v.hyperlink_color = ACCENT;
-        let radius = CornerRadius::same(10);
-        for w in [
-            &mut v.widgets.noninteractive,
-            &mut v.widgets.inactive,
-            &mut v.widgets.hovered,
-            &mut v.widgets.active,
-            &mut v.widgets.open,
-        ] {
-            w.corner_radius = radius;
-            w.expansion = 0.0;
-            w.fg_stroke.color = INK;
-        }
-        v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, BORDER);
-        v.widgets.inactive.bg_stroke = Stroke::new(1.0, INPUT_BORDER);
-        v.widgets.hovered.bg_stroke = Stroke::new(1.0, HOVER_BORDER);
-        v.widgets.active.bg_stroke = Stroke::new(1.0, ACCENT);
-    });
+    for (theme, c) in [(egui::Theme::Light, &LIGHT), (egui::Theme::Dark, &DARK)] {
+        ctx.style_mut_of(theme, |style| {
+            style
+                .text_styles
+                .insert(egui::TextStyle::Body, sans(15.0, W::Regular));
+            style
+                .text_styles
+                .insert(egui::TextStyle::Button, sans(15.0, W::Regular));
+            style
+                .text_styles
+                .insert(egui::TextStyle::Heading, sans(30.0, W::Bold));
+            style
+                .text_styles
+                .insert(egui::TextStyle::Small, sans(13.0, W::Regular));
+            style.spacing.item_spacing = vec2(8.0, 8.0);
+            let v = &mut style.visuals;
+            v.panel_fill = c.bg;
+            v.window_fill = c.surface;
+            v.extreme_bg_color = c.surface;
+            v.override_text_color = None;
+            v.weak_text_color = Some(c.muted);
+            v.selection.bg_fill = c.selection;
+            v.selection.stroke = Stroke::new(2.0, c.accent);
+            v.text_cursor.stroke = Stroke::new(2.0, c.accent);
+            v.hyperlink_color = c.accent;
+            let radius = CornerRadius::same(10);
+            for w in [
+                &mut v.widgets.noninteractive,
+                &mut v.widgets.inactive,
+                &mut v.widgets.hovered,
+                &mut v.widgets.active,
+                &mut v.widgets.open,
+            ] {
+                w.corner_radius = radius;
+                w.expansion = 0.0;
+                w.fg_stroke.color = c.ink;
+            }
+            v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, c.border);
+            v.window_stroke = Stroke::new(1.0, c.hover_border);
+            v.widgets.inactive.weak_bg_fill = c.chip;
+            v.widgets.hovered.weak_bg_fill = c.border;
+            v.widgets.active.weak_bg_fill = c.border;
+            v.widgets.inactive.bg_stroke = Stroke::new(1.0, c.field_border);
+            v.widgets.hovered.bg_stroke = Stroke::new(1.0, c.muted);
+            v.widgets.active.bg_stroke = Stroke::new(1.0, c.accent);
+        });
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -268,17 +390,17 @@ struct Btn<'a> {
 }
 
 impl<'a> Btn<'a> {
-    fn base(text: &'a str) -> Self {
+    fn base(c: &Palette, text: &'a str) -> Self {
         Btn {
             text,
             a11y: None,
             icon: None,
             font: sans(15.0, W::Medium),
             fill: Color32::TRANSPARENT,
-            hover_fill: CHIP,
+            hover_fill: c.chip,
             stroke: Stroke::NONE,
             dashed: false,
-            fg: INK,
+            fg: c.ink,
             radius: 10,
             pad: 16.0,
             min: vec2(0.0, 44.0),
@@ -286,21 +408,21 @@ impl<'a> Btn<'a> {
             enabled: true,
         }
     }
-    fn primary(text: &'a str) -> Self {
+    fn primary(c: &Palette, text: &'a str) -> Self {
         Btn {
-            fill: ACCENT,
-            hover_fill: ACCENT_DARK,
-            fg: WHITE,
+            fill: c.accent,
+            hover_fill: c.accent_strong,
+            fg: c.on_accent,
             font: sans(15.0, W::SemiBold),
-            ..Self::base(text)
+            ..Self::base(c, text)
         }
     }
-    fn outline(text: &'a str) -> Self {
+    fn outline(c: &Palette, text: &'a str) -> Self {
         Btn {
-            fill: WHITE,
-            hover_fill: BG,
-            stroke: Stroke::new(1.0, INPUT_BORDER),
-            ..Self::base(text)
+            fill: c.surface,
+            hover_fill: c.bg,
+            stroke: Stroke::new(1.0, c.button_border),
+            ..Self::base(c, text)
         }
     }
     fn icon(mut self, icon: Icon, size: f32) -> Self {
@@ -325,6 +447,7 @@ impl<'a> Btn<'a> {
     }
 
     fn show(self, ui: &mut Ui) -> Response {
+        let c = colors(ui);
         let galley = ui
             .painter()
             .layout_no_wrap(self.text.to_owned(), self.font.clone(), self.fg);
@@ -354,7 +477,7 @@ impl<'a> Btn<'a> {
             };
             p.rect_filled(rect, self.radius, fill.gamma_multiply(alpha));
             if self.dashed {
-                dashed_rect(p, rect.shrink(0.5), Stroke::new(1.0, HOVER_BORDER));
+                dashed_rect(p, rect.shrink(0.5), Stroke::new(1.0, c.hover_border));
             } else if self.stroke.width > 0.0 {
                 p.rect_stroke(rect, self.radius, self.stroke, StrokeKind::Inside);
             }
@@ -380,11 +503,12 @@ impl<'a> Btn<'a> {
 }
 
 fn focus_ring(ui: &Ui, response: &Response, rect: Rect, radius: u8) {
+    let c = colors(ui);
     if response.has_focus() {
         ui.painter().rect_stroke(
             rect.expand(2.0),
             radius + 2,
-            Stroke::new(2.0, ACCENT),
+            Stroke::new(2.0, c.accent),
             StrokeKind::Outside,
         );
     }
@@ -461,8 +585,9 @@ fn paint_bar(p: &Painter, rect: Rect, track: Color32, segments: &[(f32, Color32)
 }
 
 fn bar(ui: &mut Ui, width: f32, height: f32, segments: &[(f32, Color32)]) {
+    let c = colors(ui);
     let (rect, _) = ui.allocate_exact_size(vec2(width.max(0.0), height), Sense::hover());
-    paint_bar(ui.painter(), rect, DIVIDER, segments);
+    paint_bar(ui.painter(), rect, c.divider, segments);
 }
 
 fn card<R>(
@@ -471,8 +596,9 @@ fn card<R>(
     margin: impl Into<Margin>,
     add: impl FnOnce(&mut Ui) -> R,
 ) -> R {
+    let c = colors(ui);
     Frame::new()
-        .fill(WHITE)
+        .fill(c.surface)
         .stroke(Stroke::new(1.0, border))
         .corner_radius(14)
         .inner_margin(margin)
@@ -485,10 +611,11 @@ fn card<R>(
 
 /// Small uppercase column heading.
 fn caption(ui: &mut Ui, s: &str) {
+    let c = colors(ui);
     ui.label(
         egui::RichText::new(s.to_uppercase())
             .font(sans(12.0, W::SemiBold))
-            .color(MUTED)
+            .color(c.muted)
             .extra_letter_spacing(0.72),
     );
 }
@@ -501,7 +628,8 @@ fn checkbox(
     accent: Color32,
     enabled: bool,
 ) -> Response {
-    let fg = if enabled { INK } else { DISABLED };
+    let c = colors(ui);
+    let fg = if enabled { c.ink } else { c.disabled };
     let galley = ui
         .painter()
         .layout_no_wrap(label.to_owned(), sans(15.0, W::SemiBold), fg);
@@ -525,14 +653,14 @@ fn checkbox(
     let alpha = if enabled { 1.0 } else { 0.45 };
     if *checked {
         p.rect_filled(box_rect, 5, accent.gamma_multiply(alpha));
-        Icon::Check.paint(p, box_rect.center(), 18.0, WHITE, 2.5);
+        Icon::Check.paint(p, box_rect.center(), 18.0, c.on_accent, 2.5);
     } else {
         let border = if enabled && response.hovered() {
             accent
         } else {
-            MUTED
+            c.muted
         };
-        p.rect_filled(box_rect, 5, WHITE);
+        p.rect_filled(box_rect, 5, c.surface);
         p.rect_stroke(
             box_rect,
             5,
@@ -558,6 +686,7 @@ fn checkbox(
 
 /// Date picker button styled like the mockup's date input. Returns true when the date changed.
 fn date_field(ui: &mut Ui, date: &mut NaiveDate, id_salt: &str, a11y: &str) -> bool {
+    let c = colors(ui);
     let mut picked =
         jiff::civil::Date::new(date.year() as i16, date.month() as i8, date.day() as i8)
             .unwrap_or_default();
@@ -567,7 +696,7 @@ fn date_field(ui: &mut Ui, date: &mut NaiveDate, id_salt: &str, a11y: &str) -> b
             ui.spacing_mut().button_padding = vec2(10.0, 0.0);
             let w = &mut ui.visuals_mut().widgets;
             for state in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
-                state.weak_bg_fill = WHITE;
+                state.weak_bg_fill = c.surface;
                 state.corner_radius = CornerRadius::same(8);
             }
             ui.add(
@@ -647,23 +776,24 @@ fn open_path(path: &Path) -> std::io::Result<()> {
 }
 
 /// Entry progress of a month, as (label, background, foreground).
-fn progress_status(data: &Data, month: Month) -> (&'static str, Color32, Color32) {
+fn progress_status(c: &Palette, data: &Data, month: Month) -> (&'static str, Color32, Color32) {
     if data.has_overfull_day(month) {
-        ("Needs fixes", DANGER_SOFT, DANGER)
+        ("Needs fixes", c.danger_soft, c.danger)
     } else if data.open_days(&month.weekdays()).is_empty() {
-        ("Complete", OK_SOFT, OK_FG)
+        ("Complete", c.ok_soft, c.ok_fg)
     } else if data.month_total(month) > 0.0 {
-        ("In progress", CHIP, INK2)
+        ("In progress", c.chip, c.ink2)
     } else {
-        ("Empty", CHIP, INK2)
+        ("Empty", c.chip, c.ink2)
     }
 }
 
 /// Green success or red error line under an action.
 fn note_ui(ui: &mut Ui, note: &Result<String, String>) {
+    let c = colors(ui);
     let (msg, weight, color) = match note {
-        Ok(msg) => (msg, W::Regular, OK_FG),
-        Err(msg) => (msg, W::SemiBold, DANGER),
+        Ok(msg) => (msg, W::Regular, c.ok_fg),
+        Err(msg) => (msg, W::SemiBold, c.danger),
     };
     ui.add(
         egui::Label::new(
@@ -766,6 +896,8 @@ impl App {
         setup_style(&cc.egui_ctx);
         let data_path = data_path();
         let (store, banner) = Store::open(data_path.clone());
+        cc.egui_ctx
+            .set_theme(theme_preference(store.data.settings.appearance));
         let today = chrono::Local::now().date_naive();
         let first_run = store.data.settings == Settings::default() && store.data.entries.is_empty();
         let mut app = App {
@@ -916,14 +1048,21 @@ impl App {
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+        // Follows saved and imported settings; the new theme shows from the next frame.
+        let theme = theme_preference(self.data().settings.appearance);
+        if ui.ctx().options(|o| o.theme_preference) != theme {
+            ui.ctx().set_theme(theme);
+            ui.ctx().request_repaint();
+        }
+        let c = colors(ui);
         egui::Panel::top("top")
             .exact_size(64.0)
-            .frame(Frame::new().fill(WHITE))
+            .frame(Frame::new().fill(c.surface))
             .show(ui, |ui| self.top_bar(ui));
 
         let mut dirty = false;
         egui::CentralPanel::no_frame()
-            .frame(Frame::new().fill(BG))
+            .frame(Frame::new().fill(c.bg))
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
@@ -952,19 +1091,20 @@ impl eframe::App for App {
 
 impl App {
     fn top_bar(&mut self, ui: &mut Ui) {
+        let c = colors(ui);
         let full = ui.max_rect();
         ui.painter().hline(
             full.x_range(),
             full.bottom() - 0.5,
-            Stroke::new(1.0, BORDER),
+            Stroke::new(1.0, c.border),
         );
         centered(ui, 1280.0, 32.0, |ui| {
             ui.set_height(64.0);
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
                 let (rect, _) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::hover());
-                Icon::Clock.paint(ui.painter(), rect.center(), 24.0, ACCENT, 2.0);
-                text(ui, "Timesheet", sans(17.0, W::Bold), INK);
+                Icon::Clock.paint(ui.painter(), rect.center(), 24.0, c.accent, 2.0);
+                text(ui, "Timesheet", sans(17.0, W::Bold), c.ink);
                 ui.add_space(22.0);
                 ui.spacing_mut().item_spacing.x = 4.0;
                 for (view, label) in [
@@ -972,15 +1112,15 @@ impl App {
                     (View::PastMonths, "Past months"),
                 ] {
                     let on = self.view == view;
-                    let mut b = Btn::base(label).min(0.0, 40.0);
+                    let mut b = Btn::base(c, label).min(0.0, 40.0);
                     b.pad = 14.0;
                     b.radius = 8;
                     if on {
-                        b = b.fg(ACCENT_DARK).font(sans(15.0, W::SemiBold));
-                        b.fill = ACCENT_SOFT;
-                        b.hover_fill = ACCENT_SOFT;
+                        b = b.fg(c.accent_strong).font(sans(15.0, W::SemiBold));
+                        b.fill = c.accent_soft;
+                        b.hover_fill = c.accent_soft;
                     } else {
-                        b = b.fg(INK2).font(sans(15.0, W::Regular));
+                        b = b.fg(c.ink2).font(sans(15.0, W::Regular));
                     }
                     if b.show(ui).clicked() {
                         self.view = view;
@@ -997,14 +1137,14 @@ impl App {
                             format!("Signed in as {name}. Edit settings"),
                         )
                     });
-                    let fill = if response.hovered() { INK2 } else { INK };
+                    let fill = if response.hovered() { c.ink2 } else { c.ink };
                     ui.painter().circle_filled(rect.center(), 18.0, fill);
                     ui.painter().text(
                         rect.center(),
                         Align2::CENTER_CENTER,
                         settings.initials(),
                         sans(13.0, W::SemiBold),
-                        WHITE,
+                        c.surface,
                     );
                     focus_ring(ui, &response, rect, 18);
                     if response
@@ -1021,8 +1161,9 @@ impl App {
     }
 
     fn banner_ui(&mut self, ui: &mut Ui, msg: &str) {
+        let c = colors(ui);
         Frame::new()
-            .fill(DANGER_SOFT)
+            .fill(c.danger_soft)
             .corner_radius(10)
             .inner_margin(Margin::symmetric(16, 12))
             .show(ui, |ui| {
@@ -1031,13 +1172,13 @@ impl App {
                     ui.add(
                         egui::Label::new(
                             egui::RichText::new(msg)
-                                .color(DANGER)
+                                .color(c.danger)
                                 .font(sans(14.0, W::SemiBold)),
                         )
                         .wrap(),
                     );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if Btn::base("")
+                        if Btn::base(c, "")
                             .icon(Icon::Close, 16.0)
                             .a11y("Dismiss")
                             .min(32.0, 32.0)
@@ -1056,6 +1197,7 @@ impl App {
 
     /// Returns true when data changed.
     fn timesheet(&mut self, ui: &mut Ui) -> bool {
+        let c = colors(ui);
         let month = self.month;
         let weeks = month.weeks();
         self.week = self.week.min(weeks.len().saturating_sub(1));
@@ -1067,20 +1209,30 @@ impl App {
                 ui.spacing_mut().item_spacing = vec2(10.0, 8.0);
                 ui.horizontal(|ui| {
                     let s = &self.store.data.settings;
-                    text(ui, s.project_or_placeholder(), sans(15.0, W::SemiBold), INK);
-                    text(ui, s.client_or_placeholder(), sans(14.0, W::Regular), MUTED);
+                    text(
+                        ui,
+                        s.project_or_placeholder(),
+                        sans(15.0, W::SemiBold),
+                        c.ink,
+                    );
+                    text(
+                        ui,
+                        s.client_or_placeholder(),
+                        sans(14.0, W::Regular),
+                        c.muted,
+                    );
                     pill(
                         ui,
                         "Draft · sent monthly",
-                        CHIP,
-                        INK2,
+                        c.chip,
+                        c.ink2,
                         sans(13.0, W::SemiBold),
                         vec2(10.0, 3.0),
                         99,
                     );
                 });
                 ui.horizontal(|ui| {
-                    if Btn::outline("")
+                    if Btn::outline(c, "")
                         .icon(Icon::ChevronLeft, 18.0)
                         .a11y("Previous month")
                         .min(44.0, 44.0)
@@ -1090,9 +1242,9 @@ impl App {
                         self.open_month(month.prev());
                     }
                     ui.add_space(4.0);
-                    text(ui, month.label(), sans(30.0, W::Bold), INK);
+                    text(ui, month.label(), sans(30.0, W::Bold), c.ink);
                     ui.add_space(4.0);
-                    if Btn::outline("")
+                    if Btn::outline(c, "")
                         .icon(Icon::ChevronRight, 18.0)
                         .a11y("Next month")
                         .min(44.0, 44.0)
@@ -1109,14 +1261,14 @@ impl App {
                     ui,
                     "Weekdays only · max 8 h per day",
                     sans(14.0, W::Regular),
-                    MUTED,
+                    c.muted,
                 );
                 for kind in Kind::ALL.iter().rev() {
                     // Inside a right-to-left layout: the label is added first so the swatch sits on its left.
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 6.0;
-                        text(ui, kind.label(), sans(14.0, W::Regular), INK2);
-                        swatch(ui, kind_color(*kind));
+                        text(ui, kind.label(), sans(14.0, W::Regular), c.ink2);
+                        swatch(ui, c.kind(*kind));
                     });
                 }
             });
@@ -1193,6 +1345,7 @@ impl App {
     }
 
     fn sidebar(&mut self, ui: &mut Ui, weeks: &[Vec<NaiveDate>]) {
+        let c = colors(ui);
         let month = self.month;
         let data = self.data();
         let days = data.workdays(&month.weekdays());
@@ -1206,28 +1359,28 @@ impl App {
             .collect();
         ui.spacing_mut().item_spacing.y = 16.0;
 
-        card(ui, BORDER, Margin::same(20), |ui| {
+        card(ui, c.border, Margin::same(20), |ui| {
             ui.spacing_mut().item_spacing.y = 16.0;
             ui.horizontal(|ui| {
-                text(ui, month.name(), sans(17.0, W::Bold), INK);
+                text(ui, month.name(), sans(17.0, W::Bold), c.ink);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let mut job = LayoutJob::default();
                     job.append(
                         &fmt_hours(total),
                         0.0,
-                        egui::TextFormat::simple(mono(22.0, true), INK),
+                        egui::TextFormat::simple(mono(22.0, true), c.ink),
                     );
                     job.append(
                         &format!(" / {} h", fmt_hours(target)),
                         0.0,
-                        egui::TextFormat::simple(mono(14.0, false), MUTED),
+                        egui::TextFormat::simple(mono(14.0, false), c.muted),
                     );
                     ui.label(job);
                 });
             });
             let segments: Vec<(f32, Color32)> = by_kind
                 .iter()
-                .map(|&(k, h)| ((h / target) as f32, kind_color(k)))
+                .map(|&(k, h)| ((h / target) as f32, c.kind(k)))
                 .collect();
             bar(ui, ui.available_width(), 10.0, &segments);
             ui.vertical(|ui| {
@@ -1235,15 +1388,15 @@ impl App {
                 for &(k, h) in &by_kind {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 10.0;
-                        swatch(ui, kind_color(k));
-                        text(ui, k.label(), sans(15.0, W::Regular), INK);
+                        swatch(ui, c.kind(k));
+                        text(ui, k.label(), sans(15.0, W::Regular), c.ink);
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            text(ui, format!("{} h", fmt_hours(h)), mono(15.0, false), INK);
+                            text(ui, format!("{} h", fmt_hours(h)), mono(15.0, false), c.ink);
                         });
                     });
                 }
             });
-            hline(ui, DIVIDER);
+            hline(ui, c.divider);
             ui.add_space(-2.0);
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
@@ -1251,12 +1404,12 @@ impl App {
                 job.append(
                     &format!("{} of {}", days.len() - open.len(), days.len()),
                     0.0,
-                    egui::TextFormat::simple(sans(14.0, W::Bold), INK),
+                    egui::TextFormat::simple(sans(14.0, W::Bold), c.ink),
                 );
                 job.append(
                     " workdays complete",
                     0.0,
-                    egui::TextFormat::simple(sans(14.0, W::Regular), INK2),
+                    egui::TextFormat::simple(sans(14.0, W::Regular), c.ink2),
                 );
                 ui.add(egui::Label::new(job).extend());
                 if let Some(&first_open) = open.first() {
@@ -1265,8 +1418,8 @@ impl App {
                         weekday_short(first_open),
                         first_open.day()
                     );
-                    let mut b = Btn::outline(&label)
-                        .fg(ACCENT)
+                    let mut b = Btn::outline(c, &label)
+                        .fg(c.accent)
                         .font(sans(15.0, W::SemiBold))
                         .min(0.0, 40.0);
                     b.pad = 12.0;
@@ -1281,20 +1434,20 @@ impl App {
         });
 
         let mut export = None;
-        card(ui, BORDER, Margin::same(20), |ui| {
+        card(ui, c.border, Margin::same(20), |ui| {
             ui.spacing_mut().item_spacing.y = 12.0;
             text(
                 ui,
                 format!("Export {}", month.name()),
                 sans(17.0, W::Bold),
-                INK,
+                c.ink,
             );
             if any_over {
                 text(
                     ui,
                     "Fix days over 8 h before exporting.",
                     sans(14.0, W::SemiBold),
-                    DANGER,
+                    c.danger,
                 );
             }
             if !open.is_empty() {
@@ -1306,7 +1459,7 @@ impl App {
                     egui::Label::new(
                         egui::RichText::new(msg)
                             .font(sans(14.0, W::Regular))
-                            .color(WARN),
+                            .color(c.warn),
                     )
                     .wrap(),
                 );
@@ -1315,9 +1468,9 @@ impl App {
             for (report, primary) in [(Report::Detailed, true), (Report::Summary, false)] {
                 let label = format!("{} (PDF)", report.title());
                 let mut b = if primary {
-                    Btn::primary(&label)
+                    Btn::primary(c, &label)
                 } else {
-                    Btn::outline(&label).font(sans(15.0, W::SemiBold))
+                    Btn::outline(c, &label).font(sans(15.0, W::SemiBold))
                 };
                 b = b.icon(Icon::Download, 18.0).min(full, 48.0);
                 b.left = true;
@@ -1330,7 +1483,7 @@ impl App {
                 "Both PDFs cover {}, weekdays only.",
                 month.period_label().rsplit_once(',').map_or("", |p| p.0)
             );
-            text(ui, note, sans(13.0, W::Regular), MUTED);
+            text(ui, note, sans(13.0, W::Regular), c.muted);
             self.export_note_ui(ui, month);
         });
         if let Some(report) = export {
@@ -1343,6 +1496,7 @@ impl App {
 
     /// Returns true when data changed.
     fn past_months(&mut self, ui: &mut Ui) -> bool {
+        let c = colors(ui);
         let today = self.today;
         let current = Month::of(today);
         let months = self.data().closed_months(current);
@@ -1358,10 +1512,20 @@ impl App {
                 ui.spacing_mut().item_spacing = vec2(10.0, 6.0);
                 ui.horizontal(|ui| {
                     let s = &self.store.data.settings;
-                    text(ui, s.project_or_placeholder(), sans(15.0, W::SemiBold), INK);
-                    text(ui, s.client_or_placeholder(), sans(14.0, W::Regular), MUTED);
+                    text(
+                        ui,
+                        s.project_or_placeholder(),
+                        sans(15.0, W::SemiBold),
+                        c.ink,
+                    );
+                    text(
+                        ui,
+                        s.client_or_placeholder(),
+                        sans(14.0, W::Regular),
+                        c.muted,
+                    );
                 });
-                text(ui, "Past months", sans(30.0, W::Bold), INK);
+                text(ui, "Past months", sans(30.0, W::Bold), c.ink);
             });
             ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
@@ -1371,20 +1535,20 @@ impl App {
                     (
                         count(|s| matches!(s, ApprovalStatus::NotSent)),
                         "not sent",
-                        CHIP,
-                        INK2,
+                        c.chip,
+                        c.ink2,
                     ),
                     (
                         count(|s| matches!(s, ApprovalStatus::Awaiting { .. })),
                         "awaiting signature",
-                        ACCENT_SOFT,
-                        ACCENT_DARK,
+                        c.accent_soft,
+                        c.accent_strong,
                     ),
                     (
                         count(|s| matches!(s, ApprovalStatus::Approved)),
                         "approved",
-                        OK_SOFT,
-                        OK_FG,
+                        c.ok_soft,
+                        c.ok_fg,
                     ),
                 ];
                 for (n, label, bg, fg) in counts.into_iter().rev() {
@@ -1408,7 +1572,7 @@ impl App {
 
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(14.0, 6.0);
-            text(ui, "Each month:", sans(14.0, W::SemiBold), INK);
+            text(ui, "Each month:", sans(14.0, W::SemiBold), c.ink);
             let steps = [
                 "1. Export both PDFs",
                 "2. Tick “Sent” when emailed to your manager",
@@ -1417,9 +1581,9 @@ impl App {
             ];
             for (i, step) in steps.into_iter().enumerate() {
                 if i > 0 {
-                    text(ui, "›", sans(14.0, W::Regular), INK2);
+                    text(ui, "›", sans(14.0, W::Regular), c.ink2);
                 }
-                text(ui, step, sans(14.0, W::Regular), INK2);
+                text(ui, step, sans(14.0, W::Regular), c.ink2);
             }
         });
 
@@ -1430,7 +1594,7 @@ impl App {
                     ui,
                     "No closed months yet. A month appears here once it ends.",
                     sans(15.0, W::Regular),
-                    MUTED,
+                    c.muted,
                 );
             }
             for (&month, &status) in months.iter().zip(&statuses) {
@@ -1449,13 +1613,14 @@ impl App {
 
     /// Link card to the month being entered. Returns true when clicked.
     fn current_month_card(&self, ui: &mut Ui, month: Month) -> bool {
+        let c = colors(ui);
         let data = self.data();
         let total = data.month_total(month);
         let target = data.target_hours(&month.weekdays());
-        let (status, bg, fg) = progress_status(data, month);
+        let (status, bg, fg) = progress_status(c, data, month);
         let frame = Frame::new()
-            .fill(WHITE)
-            .stroke(Stroke::new(1.0, BORDER))
+            .fill(c.surface)
+            .stroke(Stroke::new(1.0, c.border))
             .corner_radius(14)
             .inner_margin(Margin::symmetric(20, 16));
         let rect = frame
@@ -1465,7 +1630,7 @@ impl App {
                     ui.spacing_mut().item_spacing.x = 16.0;
                     ui.horizontal(|ui| {
                         ui.set_min_width(150.0);
-                        text(ui, month.label(), sans(17.0, W::Bold), INK);
+                        text(ui, month.label(), sans(17.0, W::Bold), c.ink);
                     });
                     pill(
                         ui,
@@ -1481,20 +1646,20 @@ impl App {
                             ui,
                             "Continue entering time",
                             sans(15.0, W::SemiBold),
-                            ACCENT,
+                            c.accent,
                         );
                         text(
                             ui,
                             format!("{} / {} h", fmt_hours(total), fmt_hours(target)),
                             mono(14.0, false),
-                            INK,
+                            c.ink,
                         );
                         ui.spacing_mut().item_spacing.x = 10.0;
                         bar(
                             ui,
                             ui.available_width(),
                             8.0,
-                            &[((total / target) as f32, ACCENT)],
+                            &[((total / target) as f32, c.accent)],
                         );
                     });
                 });
@@ -1510,8 +1675,12 @@ impl App {
             )
         });
         if response.hovered() {
-            ui.painter()
-                .rect_stroke(rect, 14, Stroke::new(1.0, HOVER_BORDER), StrokeKind::Inside);
+            ui.painter().rect_stroke(
+                rect,
+                14,
+                Stroke::new(1.0, c.hover_border),
+                StrokeKind::Inside,
+            );
         }
         focus_ring(ui, &response, rect, 14);
         response.on_hover_cursor(CursorIcon::PointingHand).clicked()
@@ -1526,22 +1695,26 @@ impl App {
         approval: &mut Approval,
         action: &mut Option<MonthAction>,
     ) {
+        let c = colors(ui);
         let data = self.data();
         let today = self.today;
         let label = month.label();
         let can_export = !data.has_overfull_day(month);
         let (status_text, pill_bg, pill_fg, border) = match status {
-            ApprovalStatus::NotSent => ("Not sent", CHIP, INK2, BORDER),
+            ApprovalStatus::NotSent => ("Not sent", c.chip, c.ink2, c.border),
             ApprovalStatus::Awaiting { late: true, .. } => {
-                ("Follow up", WARN_SOFT, WARN, WARN_BORDER)
+                ("Follow up", c.warn_soft, c.warn, c.warn_border)
             }
-            ApprovalStatus::Awaiting { .. } => {
-                ("Awaiting signature", ACCENT_SOFT, ACCENT_DARK, BORDER)
-            }
+            ApprovalStatus::Awaiting { .. } => (
+                "Awaiting signature",
+                c.accent_soft,
+                c.accent_strong,
+                c.border,
+            ),
             ApprovalStatus::Approved if approval.signed_pdf.is_some() => {
-                ("Approved · signed copy saved", OK_SOFT, OK_FG, BORDER)
+                ("Approved · signed copy saved", c.ok_soft, c.ok_fg, c.border)
             }
-            ApprovalStatus::Approved => ("Approved", OK_SOFT, OK_FG, BORDER),
+            ApprovalStatus::Approved => ("Approved", c.ok_soft, c.ok_fg, c.border),
         };
         // Mockup flex bases, except the first column, widened to fit the "Approved · signed copy saved" pill.
         let columns = [
@@ -1556,19 +1729,19 @@ impl App {
                 ui.spacing_mut().item_spacing.y = 6.0;
                 match column {
                     0 => {
-                        text(ui, &label, sans(17.0, W::Bold), INK);
+                        text(ui, &label, sans(17.0, W::Bold), c.ink);
                         let mut job = LayoutJob::default();
                         job.append(
                             &format!("{} h", fmt_hours(data.month_total(month))),
                             0.0,
-                            egui::TextFormat::simple(mono(14.0, true), INK),
+                            egui::TextFormat::simple(mono(14.0, true), c.ink),
                         );
                         let workdays = data.workdays(&month.weekdays()).len();
                         let days = format!(" · {workdays} workdays");
                         job.append(
                             &days,
                             0.0,
-                            egui::TextFormat::simple(sans(14.0, W::Regular), INK2),
+                            egui::TextFormat::simple(sans(14.0, W::Regular), c.ink2),
                         );
                         ui.label(job);
                         pill(
@@ -1585,9 +1758,9 @@ impl App {
                         caption(ui, "Generated PDFs");
                         ui.spacing_mut().item_spacing.y = 0.0;
                         for report in [Report::Detailed, Report::Summary] {
-                            let mut b = Btn::base(report.title())
+                            let mut b = Btn::base(c, report.title())
                                 .icon(Icon::Download, 16.0)
-                                .fg(ACCENT)
+                                .fg(c.accent)
                                 .min(0.0, 32.0);
                             b.pad = 0.0;
                             b.left = true;
@@ -1604,14 +1777,14 @@ impl App {
                                 ui,
                                 "Fix days over 8 h to export.",
                                 sans(13.0, W::SemiBold),
-                                DANGER,
+                                c.danger,
                             );
                         }
                         self.export_note_ui(ui, month);
                     }
                     2 => {
                         let mut sent = approval.sent.is_some();
-                        if checkbox(ui, &mut sent, "Sent to manager", ACCENT, true).changed() {
+                        if checkbox(ui, &mut sent, "Sent to manager", c.accent, true).changed() {
                             approval.set_sent(sent, today);
                         }
                         match approval.sent.as_mut() {
@@ -1628,7 +1801,7 @@ impl App {
                                     ui,
                                     "Tick after emailing both PDFs.",
                                     sans(13.0, W::Regular),
-                                    MUTED,
+                                    c.muted,
                                 );
                             }
                         }
@@ -1636,7 +1809,8 @@ impl App {
                     3 => {
                         let mut approved = approval.approved.is_some();
                         let enabled = approval.sent.is_some();
-                        if checkbox(ui, &mut approved, "Approved by manager", OK, enabled).changed()
+                        if checkbox(ui, &mut approved, "Approved by manager", c.ok, enabled)
+                            .changed()
                         {
                             approval.set_approved(approved, today);
                         }
@@ -1654,9 +1828,9 @@ impl App {
                                 n => format!("Sent {n} days ago"),
                             };
                             let (tail, color) = if late {
-                                ("time to follow up", WARN)
+                                ("time to follow up", c.warn)
                             } else {
-                                ("waiting for reply", INK2)
+                                ("waiting for reply", c.ink2)
                             };
                             text(
                                 ui,
@@ -1671,16 +1845,16 @@ impl App {
                         if let Some(name) = &approval.signed_pdf {
                             signed_file_row(ui, name, &label, action);
                         } else {
-                            let mut b = Btn::base("Attach signed PDF")
+                            let mut b = Btn::base(c, "Attach signed PDF")
                                 .icon(Icon::Paperclip, 18.0)
-                                .fg(ACCENT)
+                                .fg(c.accent)
                                 .font(sans(15.0, W::SemiBold))
                                 .min(ui.available_width(), 44.0)
                                 .a11y(format!("Attach signed PDF, {label}"));
                             b.dashed = true;
                             b.left = true;
                             b.pad = 14.0;
-                            b.hover_fill = ACCENT_TINT;
+                            b.hover_fill = c.accent_tint;
                             if b.show(ui).clicked() {
                                 *action = Some(MonthAction::Attach);
                             }
@@ -1689,7 +1863,7 @@ impl App {
                             } else {
                                 "Attaching marks the month as sent and approved."
                             };
-                            text(ui, hint, sans(13.0, W::Regular), MUTED);
+                            text(ui, hint, sans(13.0, W::Regular), c.muted);
                         }
                     }
                 }
@@ -1749,22 +1923,23 @@ impl App {
         let mut cancel = false;
         let mut export = false;
         let mut import = false;
+        let c = Palette::of(&ctx.global_style().visuals);
         let frame = Frame::new()
-            .fill(WHITE)
+            .fill(c.surface)
             .corner_radius(14)
             .inner_margin(Margin::same(24))
-            .stroke(Stroke::new(1.0, BORDER));
+            .stroke(Stroke::new(1.0, c.border));
         let modal = egui::Modal::new(Id::new("settings"))
             .frame(frame)
             .show(ctx, |ui| {
                 ui.set_width(440.0);
                 ui.spacing_mut().item_spacing.y = 6.0;
-                text(ui, "Settings", sans(20.0, W::Bold), INK);
+                text(ui, "Settings", sans(20.0, W::Bold), c.ink);
                 text(
                     ui,
                     "Shown in the app header and on both PDF exports.",
                     sans(14.0, W::Regular),
-                    MUTED,
+                    c.muted,
                 );
                 ui.add_space(10.0);
                 for (label, value, hint) in [
@@ -1772,12 +1947,12 @@ impl App {
                     ("Client name", &mut draft.client, "e.g. Acme Corp"),
                     ("Project name", &mut draft.project, "e.g. Website redesign"),
                 ] {
-                    text(ui, label, sans(14.0, W::SemiBold), INK2);
+                    text(ui, label, sans(14.0, W::SemiBold), c.ink2);
                     ui.add(
                         TextEdit::singleline(value)
                             .hint_text(hint)
                             .font(sans(15.0, W::Regular))
-                            .text_color(INK)
+                            .text_color(c.ink)
                             .margin(Margin::symmetric(12, 0))
                             .vertical_align(Align::Center)
                             .min_size(vec2(0.0, 44.0))
@@ -1785,13 +1960,13 @@ impl App {
                     );
                     ui.add_space(8.0);
                 }
-                text(ui, "Public holidays", sans(14.0, W::SemiBold), INK2);
+                text(ui, "Public holidays", sans(14.0, W::SemiBold), c.ink2);
                 let country_label = |c: Option<Country>| c.map_or("None", Country::label);
                 egui::ComboBox::from_id_salt("country")
                     .selected_text(
                         egui::RichText::new(country_label(draft.country))
                             .font(sans(15.0, W::Regular))
-                            .color(INK),
+                            .color(c.ink),
                     )
                     .width(ui.available_width())
                     .show_ui(ui, |ui| {
@@ -1807,7 +1982,29 @@ impl App {
                     ui,
                     "Marked as days off unless you mark them as workdays.",
                     sans(13.0, W::Regular),
-                    MUTED,
+                    c.muted,
+                );
+                ui.add_space(8.0);
+                text(ui, "Appearance", sans(14.0, W::SemiBold), c.ink2);
+                egui::ComboBox::from_id_salt("appearance")
+                    .selected_text(
+                        egui::RichText::new(draft.appearance.label())
+                            .font(sans(15.0, W::Regular))
+                            .color(c.ink),
+                    )
+                    .width(ui.available_width())
+                    .show_ui(ui, |ui| {
+                        for a in Appearance::ALL {
+                            ui.selectable_value(&mut draft.appearance, a, a.label());
+                        }
+                    })
+                    .response
+                    .widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, true, "Appearance"));
+                text(
+                    ui,
+                    "System follows your computer's light or dark mode. PDFs stay light.",
+                    sans(13.0, W::Regular),
+                    c.muted,
                 );
                 ui.add_space(8.0);
                 ui.add(
@@ -1817,23 +2014,23 @@ impl App {
                             self.data_path.display()
                         ))
                         .font(sans(13.0, W::Regular))
-                        .color(MUTED),
+                        .color(c.muted),
                     )
                     .wrap(),
                 );
                 ui.horizontal(|ui| {
-                    export = Btn::outline("Export data…").show(ui).clicked();
-                    import = Btn::outline("Import data…").show(ui).clicked();
+                    export = Btn::outline(c, "Export data…").show(ui).clicked();
+                    import = Btn::outline(c, "Import data…").show(ui).clicked();
                 });
                 if let Some(note) = &self.backup_note {
                     note_ui(ui, note);
                 }
                 ui.add_space(10.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if Btn::primary("Save").min(96.0, 44.0).show(ui).clicked() {
+                    if Btn::primary(c, "Save").min(96.0, 44.0).show(ui).clicked() {
                         save = true;
                     }
-                    if Btn::outline("Cancel").show(ui).clicked() {
+                    if Btn::outline(c, "Cancel").show(ui).clicked() {
                         cancel = true;
                     }
                 });
@@ -1852,6 +2049,7 @@ impl App {
                 client: draft.client.trim().to_owned(),
                 project: draft.project.trim().to_owned(),
                 country: draft.country,
+                appearance: draft.appearance,
             };
             return true;
         }
@@ -1873,17 +2071,18 @@ fn week_chip(
     selected: bool,
     width: f32,
 ) -> Response {
+    let c = colors(ui);
     let total = data.days_total(week);
     let target = data.target_hours(week);
     let over = week.iter().any(|&d| data.day_total(d) > MAX_DAY_HOURS);
     let (status, status_color, bar_color) = if over {
-        ("Over", DANGER, DANGER)
+        ("Over", c.danger, c.danger)
     } else if total >= target {
-        ("Done", OK_FG, OK)
+        ("Done", c.ok_fg, c.ok)
     } else if total > 0.0 {
-        ("In progress", MUTED, ACCENT)
+        ("In progress", c.muted, c.accent)
     } else {
-        ("Empty", MUTED, ACCENT)
+        ("Empty", c.muted, c.accent)
     };
     let label = format!("{} {}", month.short_name(), day_range(week, "–"));
 
@@ -1898,11 +2097,11 @@ fn week_chip(
     });
     let p = ui.painter();
     let (fill, stroke) = if selected {
-        (ACCENT_TINT, Stroke::new(2.0, ACCENT))
+        (c.accent_tint, Stroke::new(2.0, c.accent))
     } else if response.hovered() {
-        (WHITE, Stroke::new(1.0, HOVER_BORDER))
+        (c.surface, Stroke::new(1.0, c.hover_border))
     } else {
-        (WHITE, Stroke::new(1.0, BORDER))
+        (c.surface, Stroke::new(1.0, c.border))
     };
     p.rect_filled(rect, 12, fill);
     p.rect_stroke(rect, 12, stroke, StrokeKind::Inside);
@@ -1913,7 +2112,7 @@ fn week_chip(
         Align2::LEFT_TOP,
         &label,
         sans(15.0, W::SemiBold),
-        INK,
+        c.ink,
     );
     p.text(
         pos2(inner.right(), inner.top() + 2.0),
@@ -1928,7 +2127,7 @@ fn week_chip(
         Align2::RIGHT_BOTTOM,
         numbers,
         mono(13.0, false),
-        INK2,
+        c.ink2,
     );
     let bar_rect = Rect::from_min_max(
         pos2(inner.left(), numbers_rect.center().y - 3.0),
@@ -1937,7 +2136,7 @@ fn week_chip(
     paint_bar(
         p,
         bar_rect,
-        BORDER,
+        c.border,
         &[((total / target).min(1.0) as f32, bar_color)],
     );
     response.on_hover_cursor(CursorIcon::PointingHand)
@@ -1946,6 +2145,7 @@ fn week_chip(
 /// One weekday card with its lines. Edits apply directly; structural changes are queued in `actions`.
 /// Returns true when a line was edited.
 fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Action>) -> bool {
+    let c = colors(ui);
     if let Some(label) = data.day_off_label(date) {
         day_off_card(ui, date, &label, actions);
         return false;
@@ -1971,21 +2171,21 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
         .map(|&k| {
             (
                 (data.day_kind_total(date, k) / MAX_DAY_HOURS) as f32,
-                kind_color(k),
+                c.kind(k),
             )
         })
         .collect();
     let (status, pill_bg, pill_fg) = if over {
-        ("Over 8 h".to_owned(), DANGER_SOFT, DANGER)
+        ("Over 8 h".to_owned(), c.danger_soft, c.danger)
     } else if left <= 0.0 {
-        ("Complete".to_owned(), OK_SOFT, OK_FG)
+        ("Complete".to_owned(), c.ok_soft, c.ok_fg)
     } else {
-        (format!("{} h left", fmt_hours(left)), CHIP, INK2)
+        (format!("{} h left", fmt_hours(left)), c.chip, c.ink2)
     };
     let day_name = weekday_long(date);
     let mut dirty = false;
 
-    let border = if over { DANGER } else { BORDER };
+    let border = if over { c.danger } else { c.border };
     card(ui, border, Margin::ZERO, |ui| {
         ui.spacing_mut().item_spacing = vec2(12.0, 0.0);
         // Header.
@@ -2009,22 +2209,22 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                             ui,
                             format!("{} / 8 h", fmt_hours(total)),
                             mono(15.0, true),
-                            INK,
+                            c.ink,
                         );
                         bar(ui, ui.available_width(), 8.0, &segments);
                     });
                 });
             });
-        hline(ui, DIVIDER);
+        hline(ui, c.divider);
 
         if indexes.is_empty() {
             Frame::new()
                 .inner_margin(Margin::symmetric(20, 18))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        text(ui, "No time recorded yet.", sans(15.0, W::Regular), MUTED);
+                        text(ui, "No time recorded yet.", sans(15.0, W::Regular), c.muted);
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if Btn::primary(&format!("Add line · {next_hint}"))
+                            if Btn::primary(c, &format!("Add line · {next_hint}"))
                                 .show(ui)
                                 .clicked()
                             {
@@ -2041,16 +2241,16 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                         from.day()
                                     )
                                 };
-                                if Btn::outline(&format!("Copy {name}")).show(ui).clicked() {
+                                if Btn::outline(c, &format!("Copy {name}")).show(ui).clicked() {
                                     actions.push(Action::Copy { from, to: date });
                                 }
                             }
-                            let day_off = Btn::outline("Day off…")
+                            let day_off = Btn::outline(c, "Day off…")
                                 .a11y(format!("Mark {day_name} as a day off"))
                                 .show(ui);
                             egui::Popup::menu(&day_off).show(|ui| {
                                 for off in DayOff::ALL {
-                                    if Btn::base(off.label()).show(ui).clicked() {
+                                    if Btn::base(c, off.label()).show(ui).clicked() {
                                         actions.push(Action::SetDayOff(date, Some(off)));
                                     }
                                 }
@@ -2063,7 +2263,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
 
         for (k, &i) in indexes.iter().enumerate() {
             if k > 0 {
-                hline(ui, DIVIDER);
+                hline(ui, c.divider);
             }
             let line_no = k + 1;
             let entry = &mut data.entries[i];
@@ -2078,7 +2278,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                     ui.horizontal(|ui| {
                         // Task type toggle.
                         Frame::new()
-                            .fill(CHIP)
+                            .fill(c.chip)
                             .corner_radius(10)
                             .inner_margin(Margin::same(3))
                             .show(ui, |ui| {
@@ -2086,7 +2286,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                     ui.spacing_mut().item_spacing.x = 0.0;
                                     for kind in Kind::ALL {
                                         let on = entry.kind == kind;
-                                        let mut b = Btn::base(kind.label()).min(0.0, 38.0).font(
+                                        let mut b = Btn::base(c, kind.label()).min(0.0, 38.0).font(
                                             sans(14.0, if on { W::SemiBold } else { W::Medium }),
                                         );
                                         b.pad = 12.0;
@@ -2096,12 +2296,12 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                             kind.label()
                                         ));
                                         if on {
-                                            b.fill = kind_toggle_fill(kind);
+                                            b.fill = c.kind_toggle(kind);
                                             b.hover_fill = b.fill;
-                                            b.fg = WHITE;
+                                            b.fg = c.on_accent;
                                         } else {
-                                            b.hover_fill = BORDER;
-                                            b.fg = INK2;
+                                            b.hover_fill = c.border;
+                                            b.fg = c.ink2;
                                         }
                                         if b.show(ui).clicked() && !on {
                                             entry.kind = kind;
@@ -2111,9 +2311,9 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                 });
                             });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            let remove = Btn::base("")
+                            let remove = Btn::base(c, "")
                                 .icon(Icon::Close, 16.0)
-                                .fg(MUTED)
+                                .fg(c.muted)
                                 .min(44.0, 44.0)
                                 .a11y(format!("Remove {day_name} line {line_no}"))
                                 .show(ui);
@@ -2121,18 +2321,18 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                 actions.push(Action::Remove(entry.id));
                             }
                             ui.spacing_mut().item_spacing.x = 6.0;
-                            text(ui, "h", sans(15.0, W::Regular), MUTED);
+                            text(ui, "h", sans(15.0, W::Regular), c.muted);
                             ui.scope(|ui| {
                                 if over {
                                     let widgets = &mut ui.visuals_mut().widgets;
-                                    widgets.inactive.bg_stroke = Stroke::new(1.0, DANGER);
-                                    widgets.hovered.bg_stroke = Stroke::new(1.0, DANGER);
+                                    widgets.inactive.bg_stroke = Stroke::new(1.0, c.danger);
+                                    widgets.hovered.bg_stroke = Stroke::new(1.0, c.danger);
                                 }
                                 let hours = ui.add(
                                     TextEdit::singleline(&mut entry.hours)
                                         .id_salt(("hours", entry.id))
                                         .font(mono(15.0, false))
-                                        .text_color(INK)
+                                        .text_color(c.ink)
                                         .horizontal_align(Align::RIGHT)
                                         .vertical_align(Align::Center)
                                         .margin(Margin {
@@ -2160,7 +2360,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                     .id_salt(("desc", entry.id))
                                     .hint_text("What did you do? e.g. ticket #1234")
                                     .font(sans(15.0, W::Regular))
-                                    .text_color(INK)
+                                    .text_color(c.ink)
                                     .vertical_align(Align::Center)
                                     .margin(Margin::symmetric(12, 0))
                                     .min_size(vec2(0.0, 44.0))
@@ -2194,13 +2394,13 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                 ui.horizontal(|ui| {
                     if left > 0.0 {
                         let label = format!("Add line · {next_hint}");
-                        let mut b = Btn::base(&label)
+                        let mut b = Btn::base(c, &label)
                             .icon(Icon::Plus, 16.0)
-                            .fg(ACCENT)
+                            .fg(c.accent)
                             .font(sans(15.0, W::SemiBold));
                         b.dashed = true;
                         b.pad = 14.0;
-                        b.hover_fill = ACCENT_TINT;
+                        b.hover_fill = c.accent_tint;
                         if b.show(ui).clicked() {
                             actions.push(Action::Add(date));
                         }
@@ -2210,7 +2410,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                             "A day cannot exceed 8 h. Remove {} h.",
                             fmt_hours(total - MAX_DAY_HOURS)
                         );
-                        text(ui, msg, sans(15.0, W::SemiBold), DANGER);
+                        text(ui, msg, sans(15.0, W::SemiBold), c.danger);
                     }
                 });
             });
@@ -2220,36 +2420,38 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
 
 /// "Mon Oct 5" at the start of a day card header.
 fn day_heading(ui: &mut Ui, date: NaiveDate) {
+    let c = colors(ui);
     ui.horizontal(|ui| {
         ui.set_min_width(140.0);
         ui.spacing_mut().item_spacing.x = 5.0;
-        text(ui, weekday_short(date), sans(17.0, W::Bold), INK);
+        text(ui, weekday_short(date), sans(17.0, W::Bold), c.ink);
         text(
             ui,
             format!("{} {}", Month::of(date).short_name(), date.day()),
             sans(17.0, W::Medium),
-            MUTED,
+            c.muted,
         );
     });
 }
 
 /// Weekday marked as a day off: no lines, 0 h toward the target.
 fn day_off_card(ui: &mut Ui, date: NaiveDate, label: &str, actions: &mut Vec<Action>) {
-    card(ui, BORDER, Margin::symmetric(20, 14), |ui| {
+    let c = colors(ui);
+    card(ui, c.border, Margin::symmetric(20, 14), |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 16.0;
             day_heading(ui, date);
             pill(
                 ui,
                 label,
-                ACCENT_SOFT,
-                ACCENT_DARK,
+                c.accent_soft,
+                c.accent_strong,
                 sans(13.0, W::SemiBold),
                 vec2(10.0, 4.0),
                 99,
             );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if Btn::outline("Mark as workday")
+                if Btn::outline(c, "Mark as workday")
                     .a11y(format!("Mark {} as a workday", weekday_long(date)))
                     .show(ui)
                     .clicked()
@@ -2260,7 +2462,7 @@ fn day_off_card(ui: &mut Ui, date: NaiveDate, label: &str, actions: &mut Vec<Act
                     ui,
                     "Not counted in the target",
                     sans(14.0, W::Regular),
-                    MUTED,
+                    c.muted,
                 );
             });
         });
@@ -2269,9 +2471,10 @@ fn day_off_card(ui: &mut Ui, date: NaiveDate, label: &str, actions: &mut Vec<Act
 
 /// Saved signed copy: the name opens it, the cross removes it.
 fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Option<MonthAction>) {
+    let c = colors(ui);
     let frame = Frame::new()
-        .fill(OK_TINT)
-        .stroke(Stroke::new(1.0, OK_BORDER))
+        .fill(c.ok_tint)
+        .stroke(Stroke::new(1.0, c.ok_border))
         .corner_radius(10)
         .inner_margin(Margin {
             left: 12,
@@ -2284,7 +2487,7 @@ fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Opti
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             let (rect, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
-            Icon::FileCheck.paint(ui.painter(), rect.center(), 18.0, OK_FG, 2.0);
+            Icon::FileCheck.paint(ui.painter(), rect.center(), 18.0, c.ok_fg, 2.0);
             // Leaves room for the item spacing before the name and the remove button.
             let name_w = (ui.available_width() - 8.0 - 8.0 - 36.0).max(0.0);
             ui.allocate_ui_with_layout(
@@ -2294,7 +2497,7 @@ fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Opti
                     ui.set_width(name_w);
                     let rich = egui::RichText::new(name)
                         .font(sans(14.0, W::SemiBold))
-                        .color(OK_FG);
+                        .color(c.ok_fg);
                     let link = ui.add(egui::Label::new(rich).truncate().sense(Sense::click()));
                     link.widget_info(|| {
                         WidgetInfo::labeled(WidgetType::Link, true, format!("Open {name}"))
@@ -2304,9 +2507,9 @@ fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Opti
                     }
                 },
             );
-            let mut b = Btn::base("")
+            let mut b = Btn::base(c, "")
                 .icon(Icon::Close, 14.0)
-                .fg(INK2)
+                .fg(c.ink2)
                 .min(36.0, 36.0)
                 .a11y(format!("Remove signed PDF for {month_label}"));
             b.radius = 8;
@@ -2316,4 +2519,129 @@ fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Opti
             }
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// WCAG 2.2 contrast ratio between two opaque colors.
+    fn contrast(a: Color32, b: Color32) -> f32 {
+        let luminance = |c: Color32| {
+            let channel = |v: u8| {
+                let v = v as f32 / 255.0;
+                if v <= 0.04045 {
+                    v / 12.92
+                } else {
+                    ((v + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            0.2126 * channel(c.r()) + 0.7152 * channel(c.g()) + 0.0722 * channel(c.b())
+        };
+        let (la, lb) = (luminance(a), luminance(b));
+        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+    }
+
+    fn palettes() -> [(&'static str, &'static Palette); 2] {
+        [("light", &LIGHT), ("dark", &DARK)]
+    }
+
+    #[test]
+    fn contrast_matches_known_values() {
+        assert!((contrast(Color32::BLACK, Color32::WHITE) - 21.0).abs() < 0.01);
+        // #767676 is the lightest gray with 4.5:1 on white.
+        let gray = Color32::from_gray(0x76);
+        assert!((contrast(gray, Color32::WHITE) - 4.54).abs() < 0.01);
+    }
+
+    #[test]
+    fn text_meets_wcag_aa_contrast() {
+        for (theme, c) in palettes() {
+            let mut pairs = vec![
+                ("accent", c.accent, "accent_tint", c.accent_tint),
+                ("accent", c.accent, "selection", c.selection),
+                (
+                    "accent_strong",
+                    c.accent_strong,
+                    "accent_soft",
+                    c.accent_soft,
+                ),
+                ("danger", c.danger, "danger_soft", c.danger_soft),
+                ("ink", c.ink, "selection", c.selection),
+                ("ink2", c.ink2, "border", c.border),
+                ("muted", c.muted, "accent_tint", c.accent_tint),
+                ("ok_fg", c.ok_fg, "ok_soft", c.ok_soft),
+                ("ok_fg", c.ok_fg, "ok_tint", c.ok_tint),
+                ("warn", c.warn, "warn_soft", c.warn_soft),
+                ("on_accent", c.on_accent, "accent", c.accent),
+                ("on_accent", c.on_accent, "accent_strong", c.accent_strong),
+                ("surface", c.surface, "ink", c.ink),
+                ("surface", c.surface, "ink2", c.ink2),
+            ];
+            for (bg_name, bg) in [("surface", c.surface), ("bg", c.bg), ("chip", c.chip)] {
+                for (fg_name, fg) in [
+                    ("ink", c.ink),
+                    ("ink2", c.ink2),
+                    ("muted", c.muted),
+                    ("accent", c.accent),
+                    ("danger", c.danger),
+                    ("ok_fg", c.ok_fg),
+                    ("warn", c.warn),
+                ] {
+                    pairs.push((fg_name, fg, bg_name, bg));
+                }
+            }
+            for kind in Kind::ALL {
+                pairs.push(("on_accent", c.on_accent, kind.label(), c.kind_toggle(kind)));
+            }
+            for (fg_name, fg, bg_name, bg) in pairs {
+                let ratio = contrast(fg, bg);
+                assert!(
+                    ratio >= 4.5,
+                    "{theme}: {fg_name} on {bg_name} is {ratio:.2}:1"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn controls_meet_wcag_aa_contrast() {
+        for (theme, c) in palettes() {
+            let mut pairs = vec![
+                ("field_border", c.field_border, "surface", c.surface),
+                ("accent", c.accent, "surface", c.surface),
+                ("ok", c.ok, "surface", c.surface),
+                ("muted", c.muted, "surface", c.surface),
+                ("danger", c.danger, "surface", c.surface),
+                ("on_accent", c.on_accent, "ok", c.ok),
+            ];
+            for kind in Kind::ALL {
+                pairs.push((kind.label(), c.kind(kind), "surface", c.surface));
+                pairs.push((kind.label(), c.kind(kind), "divider", c.divider));
+            }
+            for (fg_name, fg, bg_name, bg) in pairs {
+                let ratio = contrast(fg, bg);
+                assert!(
+                    ratio >= 3.0,
+                    "{theme}: {fg_name} on {bg_name} is {ratio:.2}:1"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn task_type_colors_have_distinct_hues() {
+        for (theme, c) in palettes() {
+            let hues: Vec<f32> = Kind::ALL
+                .iter()
+                .map(|&k| egui::ecolor::Hsva::from(c.kind(k)).h * 360.0)
+                .collect();
+            for (i, a) in hues.iter().enumerate() {
+                for b in &hues[i + 1..] {
+                    let gap = (a - b).abs().min(360.0 - (a - b).abs());
+                    assert!(gap >= 60.0, "{theme}: task-type hues {a:.0}° and {b:.0}°");
+                }
+            }
+        }
+    }
 }

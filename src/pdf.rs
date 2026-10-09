@@ -34,7 +34,7 @@ const MUTED: Rgb = (0x5B, 0x61, 0x70);
 const LINE: Rgb = (0xE2, 0xE4, 0xE9);
 const SOFT: Rgb = (0xF4, 0xF5, 0xF7);
 
-pub fn kind_rgb(kind: Kind) -> Rgb {
+pub const fn kind_rgb(kind: Kind) -> Rgb {
     match kind {
         Kind::Frontend => (0x24, 0x46, 0xD8),
         Kind::Backend => (0xC2, 0x57, 0x1A),
@@ -927,7 +927,7 @@ mod sample {
             consultant: String::new(),
             client: String::new(),
             project: "Website redesign".into(),
-            country: None,
+            ..Settings::default()
         };
         Data {
             settings,
