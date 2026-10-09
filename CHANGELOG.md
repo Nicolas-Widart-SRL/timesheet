@@ -5,6 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Entries are generated from [Conventional Commits](https://www.conventionalcommits.org/) by [git-cliff](https://git-cliff.org).
 
+## [0.2.0] - 2026-10-09
+
+### Added
+
+- Export and import all data as one JSON file
+
+### Fixed
+
+- Round hour totals so decimal sums reach exactly 8 h
+- Never overwrite a data file that could not be read
+- **export:** Break the page inside a day with many lines
+
 ## [0.1.0] - 2026-10-09
 
 First release of Timesheet, a native desktop app for monthly timesheet entry on a single project.
