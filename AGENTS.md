@@ -52,3 +52,6 @@ Run fmt, clippy and test before every commit: CI runs all three.
 
 - `docs/hexagonal-architecture.md`: notes on ports, adapters and domain boundaries in Rust. Read before
   restructuring modules or adding an abstraction over storage, PDF output or the UI.
+- Design system: <https://claude.ai/artifact/VvQRCZ1tnRKV3PhpdwmiTq> (private; ask the owner for access).
+  Tokens, writing rules and component guidelines taken from `ui/theme.rs` and `ui/widgets.rs`. Read its
+  `project/README.md` before designing a screen. When it disagrees with the code, the code wins.
