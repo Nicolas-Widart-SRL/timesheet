@@ -591,6 +591,102 @@ pub(super) fn select_field<T: Copy + PartialEq>(
     });
 }
 
+/// 132 px outline button with the task type's swatch and name; a click opens a menu of all task
+/// types. Returns true when the task type changed.
+pub(super) fn kind_menu(
+    ui: &mut Ui,
+    value: &mut Kind,
+    id_salt: impl egui::AsIdSalt,
+    a11y: &str,
+) -> bool {
+    let c = colors(ui);
+    let font = sans(14.0, W::Medium);
+    let (_, rect) = ui.allocate_space(vec2(132.0, 44.0));
+    let response = ui.interact(rect, ui.id().with(id_salt), Sense::click());
+    let open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&response));
+    response.widget_info(|| {
+        WidgetInfo::labeled(
+            WidgetType::ComboBox,
+            true,
+            format!("{a11y}: {}", value.label()),
+        )
+    });
+    if ui.is_rect_visible(rect) {
+        let p = ui.painter();
+        let fill = if response.hovered() || open {
+            c.bg
+        } else {
+            c.surface
+        };
+        p.rect_filled(rect, 10, fill);
+        p.rect_stroke(
+            rect,
+            10,
+            Stroke::new(1.0, c.button_border),
+            StrokeKind::Inside,
+        );
+        focus_ring(ui, &response, rect, 10);
+        paint_kind_label(p, rect, 12.0, *value, font.clone(), c);
+        Icon::ChevronDown.paint(
+            p,
+            pos2(rect.right() - 18.0, rect.center().y),
+            16.0,
+            c.muted,
+            2.0,
+        );
+    }
+    let mut changed = false;
+    egui::Popup::menu(&response).width(180.0).show(|ui| {
+        ui.spacing_mut().item_spacing.y = 2.0;
+        for kind in Kind::ALL {
+            let selected = *value == kind;
+            let (rect, item) =
+                ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::click());
+            item.widget_info(|| {
+                WidgetInfo::selected(WidgetType::RadioButton, true, selected, kind.label())
+            });
+            let p = ui.painter();
+            if item.hovered() || item.has_focus() {
+                p.rect_filled(rect, 8, c.chip);
+            }
+            paint_kind_label(p, rect, 10.0, kind, font.clone(), c);
+            if selected {
+                Icon::Check.paint(
+                    p,
+                    pos2(rect.right() - 18.0, rect.center().y),
+                    16.0,
+                    c.ink,
+                    2.0,
+                );
+            }
+            if item.on_hover_cursor(CursorIcon::PointingHand).clicked() && !selected {
+                *value = kind;
+                changed = true;
+            }
+        }
+    });
+    response.on_hover_cursor(CursorIcon::PointingHand);
+    changed
+}
+
+/// Task-type swatch followed by its name, `pad` in from the left of `rect`.
+fn paint_kind_label(p: &Painter, rect: Rect, pad: f32, kind: Kind, font: FontId, c: &Palette) {
+    let swatch = Rect::from_min_size(
+        pos2(rect.left() + pad, rect.center().y - 5.0),
+        vec2(10.0, 10.0),
+    );
+    p.rect_filled(swatch, 3, c.kind(kind));
+    let galley = p.layout_no_wrap(kind.label().to_owned(), font, c.ink);
+    p.galley(
+        pos2(
+            swatch.right() + 8.0,
+            rect.center().y - galley.size().y / 2.0,
+        ),
+        galley,
+        c.ink,
+    );
+}
+
 /// Full-width radio group of 36 px segments on a `chip` track; the selected one is raised.
 /// Returns true when the selection changed.
 pub(super) fn segmented<T: Copy + PartialEq>(

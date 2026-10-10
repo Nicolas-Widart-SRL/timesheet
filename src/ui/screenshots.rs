@@ -4,10 +4,11 @@
 use std::path::Path;
 
 use chrono::NaiveDate;
-use egui_kittest::Harness;
+use eframe::egui::accesskit::Role;
+use egui_kittest::{Harness, kittest::Queryable as _};
 
 use super::{App, View};
-use crate::model::Appearance;
+use crate::model::{Appearance, Kind};
 
 fn harness(dir: &Path) -> Harness<'static, App> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -45,4 +46,33 @@ fn screenshots() {
     let mut h = harness(dir.path());
     h.state_mut().settings_draft = Some(h.state().store.data.settings.clone());
     save(&mut h, "settings");
+}
+
+#[test]
+fn task_type_menu_changes_the_line() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut h = harness(dir.path());
+    h.run();
+    h.get_by_role_and_label(Role::ComboBox, "Task type, Monday line 1: Backend")
+        .click();
+    h.run();
+    h.get_by_role_and_label(Role::RadioButton, "Support")
+        .click();
+    h.run();
+
+    let monday = NaiveDate::from_ymd_opt(2026, 10, 12).unwrap();
+    let kinds: Vec<Kind> = h
+        .state()
+        .store
+        .data
+        .entries
+        .iter()
+        .filter(|e| e.date == monday)
+        .map(|e| e.kind)
+        .collect();
+    assert_eq!(kinds, [Kind::Support]);
+    assert!(
+        h.query_by_role_and_label(Role::RadioButton, "Support")
+            .is_none()
+    );
 }

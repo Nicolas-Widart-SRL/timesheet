@@ -512,40 +512,12 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                 })
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        // Task type toggle.
-                        Frame::new()
-                            .fill(c.chip)
-                            .corner_radius(10)
-                            .inner_margin(Margin::same(3))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 0.0;
-                                    for kind in Kind::ALL {
-                                        let on = entry.kind == kind;
-                                        let mut b = Btn::base(c, kind.label()).min(0.0, 38.0).font(
-                                            sans(14.0, if on { W::SemiBold } else { W::Medium }),
-                                        );
-                                        b.pad = 12.0;
-                                        b.radius = 8;
-                                        b.a11y = Some(format!(
-                                            "{}, {day_name} line {line_no}",
-                                            kind.label()
-                                        ));
-                                        if on {
-                                            b.fill = c.kind_toggle(kind);
-                                            b.hover_fill = b.fill;
-                                            b.fg = c.on_accent;
-                                        } else {
-                                            b.hover_fill = c.border;
-                                            b.fg = c.ink2;
-                                        }
-                                        if b.show(ui).clicked() && !on {
-                                            entry.kind = kind;
-                                            dirty = true;
-                                        }
-                                    }
-                                });
-                            });
+                        dirty |= kind_menu(
+                            ui,
+                            &mut entry.kind,
+                            ("kind", entry.id),
+                            &format!("Task type, {day_name} line {line_no}"),
+                        );
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             let remove = Btn::base(c, "")
                                 .icon(Icon::Close, 16.0)
