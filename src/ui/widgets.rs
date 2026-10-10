@@ -603,17 +603,24 @@ pub(super) fn kind_menu(
     let font = sans(14.0, W::Medium);
     let (_, rect) = ui.allocate_space(vec2(132.0, 44.0));
     let response = ui.interact(rect, ui.id().with(id_salt), Sense::click());
-    let open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&response));
+    let popup_id = egui::Popup::default_response_id(&response);
+    let mut open = egui::Popup::is_id_open(ui.ctx(), popup_id);
     let mut changed = false;
-    if response.has_focus() && !open {
+    // F / B / S pick a task type on the focused button or in its open menu, which then closes.
+    if response.has_focus() || open {
         let typed = ui.input_mut(|i| {
             Kind::ALL
                 .into_iter()
                 .find(|&k| i.consume_key(Modifiers::NONE, super::shortcuts::kind_key(k)))
         });
-        if let Some(kind) = typed.filter(|k| k != value) {
+        if let Some(kind) = typed {
+            changed = *value != kind;
             *value = kind;
-            changed = true;
+            if open {
+                egui::Popup::close_id(ui.ctx(), popup_id);
+                response.request_focus();
+                open = false;
+            }
         }
     }
     response.widget_info(|| {

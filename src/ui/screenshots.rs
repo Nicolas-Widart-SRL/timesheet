@@ -264,6 +264,15 @@ fn letter_keys_set_the_task_type_and_open_menus_block_shortcuts() {
     h.run();
     press(&mut h, Modifiers::COMMAND, Key::CloseBracket);
     assert_eq!(h.state().week, 2);
+
+    // In the open menu, a letter picks its option and closes the menu.
+    press(&mut h, Modifiers::NONE, Key::B);
+    assert_eq!(kind(&h), Kind::Backend);
+    assert!(
+        h.query_by_role_and_label(Role::RadioButton, "Support")
+            .is_none()
+    );
+    assert_eq!(focused(&h), "Task type, Monday line 1: Backend");
 }
 
 #[test]
