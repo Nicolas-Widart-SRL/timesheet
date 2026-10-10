@@ -36,12 +36,13 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
 | `Cmd+[` / `Cmd+]` | Previous / next week. |
 | `Cmd+Shift+[` / `Cmd+Shift+]` | Previous / next month. |
 | `Cmd+J` | Next open day. |
+| `Cmd+,` | Open Settings. |
 | `F` / `B` / `S` | On a focused task-type button: Frontend / Backend / Support. |
 | `Esc` | Leave the focused field. |
 
 The current day is the day holding the focused field or button. With nothing focused, it is today
 when today is in the shown week, else the first open day of the week. Shortcuts do nothing while a
-menu or dialog is open, and only `Cmd+/` works outside This month.
+menu or dialog is open, and only `Cmd+/` and `Cmd+,` work outside This month.
 
 ## Screenshots
 

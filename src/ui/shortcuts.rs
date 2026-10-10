@@ -30,6 +30,7 @@ pub(super) const PREV_MONTH: KeyboardShortcut = cmd_shift(Key::OpenBracket);
 pub(super) const NEXT_MONTH: KeyboardShortcut = cmd_shift(Key::CloseBracket);
 pub(super) const NEXT_OPEN_DAY: KeyboardShortcut = cmd(Key::J);
 pub(super) const SHOW_LIST: KeyboardShortcut = cmd(Key::Slash);
+pub(super) const SETTINGS: KeyboardShortcut = cmd(Key::Comma);
 
 const ENTER: KeyboardShortcut = KeyboardShortcut::new(Modifiers::NONE, Key::Enter);
 
@@ -136,6 +137,7 @@ impl App {
                     ),
                     (key(&NEXT_OPEN_DAY), "Next open day"),
                     (kinds, "On a task-type button: Frontend / Backend / Support"),
+                    (key(&SETTINGS), "Open settings"),
                     (key(&SHOW_LIST), "Show or hide this list"),
                 ],
             ),

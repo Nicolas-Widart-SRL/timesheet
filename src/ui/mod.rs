@@ -161,6 +161,12 @@ impl App {
             .unwrap_or(0);
     }
 
+    fn open_settings(&mut self) {
+        self.settings_draft = Some(self.store.data.settings.clone());
+        self.backup_note = None;
+        self.shortcuts_open = false;
+    }
+
     /// Shows the week holding `date`, switching month if needed, and focuses the day.
     fn jump_to(&mut self, date: NaiveDate) {
         if Month::of(date) != self.month {
@@ -285,10 +291,12 @@ impl eframe::App for App {
             ui.ctx().set_theme(theme);
             ui.ctx().request_repaint();
         }
-        if self.settings_draft.is_none()
-            && ui.input_mut(|i| i.consume_shortcut(&shortcuts::SHOW_LIST))
-        {
-            self.shortcuts_open = !self.shortcuts_open;
+        if self.settings_draft.is_none() {
+            if ui.input_mut(|i| i.consume_shortcut(&shortcuts::SHOW_LIST)) {
+                self.shortcuts_open = !self.shortcuts_open;
+            } else if ui.input_mut(|i| i.consume_shortcut(&shortcuts::SETTINGS)) {
+                self.open_settings();
+            }
         }
         let c = colors(ui);
         egui::Panel::top("top")
@@ -387,13 +395,13 @@ impl App {
                         c.surface,
                     );
                     focus_ring(ui, &response, rect, 18);
+                    let tip = shortcuts::hint(ui, "Settings", &shortcuts::SETTINGS);
                     if response
                         .on_hover_cursor(CursorIcon::PointingHand)
-                        .on_hover_text("Settings")
+                        .on_hover_text(tip)
                         .clicked()
                     {
-                        self.settings_draft = Some(self.store.data.settings.clone());
-                        self.backup_note = None;
+                        self.open_settings();
                     }
                 });
             });

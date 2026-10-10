@@ -33,6 +33,7 @@ with the hours field and with descriptions such as "ticket #1234".
 | Next open day | Same as the sidebar "Next open day" button. Key not decided, see open questions. |
 | `F` / `B` / `S` on a focused task-type button | Set Frontend / Backend / Support. No modifier needed: the button is not a text field. |
 | Shortcut list | Show an overlay that lists every shortcut. Key not decided, see open questions. |
+| `Cmd+,` | Open Settings, on every screen. Added after approval. |
 
 ## Behavior rules
 

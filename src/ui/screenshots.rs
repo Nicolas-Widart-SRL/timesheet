@@ -279,3 +279,18 @@ fn cmd_slash_toggles_the_shortcut_list() {
     press(&mut h, Modifiers::NONE, Key::Escape);
     assert!(h.query_by_label("Keyboard shortcuts").is_none());
 }
+
+#[test]
+fn cmd_comma_opens_settings_from_any_screen() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut h = harness(dir.path());
+    h.state_mut().view = View::PastMonths;
+    h.run();
+    press(&mut h, Modifiers::COMMAND, Key::Slash);
+    press(&mut h, Modifiers::COMMAND, Key::Comma);
+    assert!(h.state().settings_draft.is_some());
+    assert!(
+        !h.state().shortcuts_open,
+        "settings replace the shortcut list"
+    );
+}
