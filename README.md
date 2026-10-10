@@ -54,6 +54,8 @@ menu or dialog is open, and only `Cmd+/` and `Cmd+,` work outside This month.
 
 ![Settings](docs/screenshots/settings.png)
 
+![Keyboard shortcuts list (Cmd+/)](docs/screenshots/shortcuts.png)
+
 ## Build and run
 
 Install Rust from <https://rustup.rs>, then:

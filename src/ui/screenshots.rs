@@ -50,6 +50,12 @@ fn screenshots() {
     let mut h = harness(dir.path());
     h.state_mut().settings_draft = Some(h.state().store.data.settings.clone());
     save(&mut h, "settings");
+
+    let mut h = harness(dir.path());
+    // Shows "Cmd", as in the README, on every build machine.
+    h.ctx.set_os(eframe::egui::os::OperatingSystem::Mac);
+    h.state_mut().shortcuts_open = true;
+    save(&mut h, "shortcuts");
 }
 
 #[test]
