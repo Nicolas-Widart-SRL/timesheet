@@ -19,6 +19,8 @@ use crate::model::{
 use crate::pdf;
 
 mod past_months;
+#[cfg(test)]
+mod screenshots;
 mod settings;
 mod theme;
 mod timesheet;
@@ -90,13 +92,15 @@ fn data_path() -> PathBuf {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        Self::with(cc, data_path(), chrono::Local::now().date_naive())
+    }
+
+    fn with(cc: &eframe::CreationContext<'_>, data_path: PathBuf, today: NaiveDate) -> Self {
         setup_fonts(&cc.egui_ctx);
         setup_style(&cc.egui_ctx);
-        let data_path = data_path();
         let (store, banner) = Store::open(data_path.clone());
         cc.egui_ctx
             .set_theme(theme_preference(store.data.settings.appearance));
-        let today = chrono::Local::now().date_naive();
         let first_run = store.data.settings == Settings::default() && store.data.entries.is_empty();
         let mut app = App {
             settings_draft: first_run.then(|| store.data.settings.clone()),

@@ -1,0 +1,937 @@
+{
+  "settings": {
+    "consultant": "Alex Martin",
+    "client": "Acme Corp",
+    "project": "Website redesign",
+    "country": "belgium",
+    "appearance": "light"
+  },
+  "entries": [
+    {
+      "id": 0,
+      "date": "2026-07-01",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "8"
+    },
+    {
+      "id": 1,
+      "date": "2026-07-02",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "5"
+    },
+    {
+      "id": 2,
+      "date": "2026-07-02",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "3"
+    },
+    {
+      "id": 3,
+      "date": "2026-07-03",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "4"
+    },
+    {
+      "id": 4,
+      "date": "2026-07-03",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "4"
+    },
+    {
+      "id": 5,
+      "date": "2026-07-06",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "8"
+    },
+    {
+      "id": 6,
+      "date": "2026-07-07",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "6"
+    },
+    {
+      "id": 7,
+      "date": "2026-07-07",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "2"
+    },
+    {
+      "id": 8,
+      "date": "2026-07-08",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "3"
+    },
+    {
+      "id": 9,
+      "date": "2026-07-08",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "3.5"
+    },
+    {
+      "id": 10,
+      "date": "2026-07-08",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "1.5"
+    },
+    {
+      "id": 11,
+      "date": "2026-07-09",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "8"
+    },
+    {
+      "id": 12,
+      "date": "2026-07-10",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "5"
+    },
+    {
+      "id": 13,
+      "date": "2026-07-10",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "3"
+    },
+    {
+      "id": 14,
+      "date": "2026-07-13",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "4"
+    },
+    {
+      "id": 15,
+      "date": "2026-07-13",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "4"
+    },
+    {
+      "id": 16,
+      "date": "2026-07-14",
+      "kind": "frontend",
+      "desc": "Ticket #1281 mobile navigation",
+      "hours": "8"
+    },
+    {
+      "id": 17,
+      "date": "2026-07-15",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "6"
+    },
+    {
+      "id": 18,
+      "date": "2026-07-15",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "2"
+    },
+    {
+      "id": 19,
+      "date": "2026-07-16",
+      "kind": "frontend",
+      "desc": "Ticket #1281 mobile navigation",
+      "hours": "3"
+    },
+    {
+      "id": 20,
+      "date": "2026-07-16",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "3.5"
+    },
+    {
+      "id": 21,
+      "date": "2026-07-16",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "1.5"
+    },
+    {
+      "id": 22,
+      "date": "2026-07-17",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "8"
+    },
+    {
+      "id": 23,
+      "date": "2026-07-20",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "5"
+    },
+    {
+      "id": 24,
+      "date": "2026-07-20",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "3"
+    },
+    {
+      "id": 25,
+      "date": "2026-07-22",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "4"
+    },
+    {
+      "id": 26,
+      "date": "2026-07-22",
+      "kind": "frontend",
+      "desc": "Ticket #1281 mobile navigation",
+      "hours": "4"
+    },
+    {
+      "id": 27,
+      "date": "2026-07-23",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "8"
+    },
+    {
+      "id": 28,
+      "date": "2026-07-24",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "6"
+    },
+    {
+      "id": 29,
+      "date": "2026-07-24",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "2"
+    },
+    {
+      "id": 30,
+      "date": "2026-07-27",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "3"
+    },
+    {
+      "id": 31,
+      "date": "2026-07-27",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "3.5"
+    },
+    {
+      "id": 32,
+      "date": "2026-07-27",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "1.5"
+    },
+    {
+      "id": 33,
+      "date": "2026-07-28",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "8"
+    },
+    {
+      "id": 34,
+      "date": "2026-07-29",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "5"
+    },
+    {
+      "id": 35,
+      "date": "2026-07-29",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "3"
+    },
+    {
+      "id": 36,
+      "date": "2026-07-30",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "4"
+    },
+    {
+      "id": 37,
+      "date": "2026-07-30",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "4"
+    },
+    {
+      "id": 38,
+      "date": "2026-07-31",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "8"
+    },
+    {
+      "id": 39,
+      "date": "2026-08-03",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "6"
+    },
+    {
+      "id": 40,
+      "date": "2026-08-03",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "2"
+    },
+    {
+      "id": 41,
+      "date": "2026-08-04",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "3"
+    },
+    {
+      "id": 42,
+      "date": "2026-08-04",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "3.5"
+    },
+    {
+      "id": 43,
+      "date": "2026-08-04",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "1.5"
+    },
+    {
+      "id": 44,
+      "date": "2026-08-05",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "8"
+    },
+    {
+      "id": 45,
+      "date": "2026-08-06",
+      "kind": "frontend",
+      "desc": "Ticket #1281 mobile navigation",
+      "hours": "5"
+    },
+    {
+      "id": 46,
+      "date": "2026-08-06",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "3"
+    },
+    {
+      "id": 47,
+      "date": "2026-08-07",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "4"
+    },
+    {
+      "id": 48,
+      "date": "2026-08-07",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "4"
+    },
+    {
+      "id": 49,
+      "date": "2026-08-12",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "8"
+    },
+    {
+      "id": 50,
+      "date": "2026-08-13",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "6"
+    },
+    {
+      "id": 51,
+      "date": "2026-08-13",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "2"
+    },
+    {
+      "id": 52,
+      "date": "2026-08-14",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "3"
+    },
+    {
+      "id": 53,
+      "date": "2026-08-14",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "3.5"
+    },
+    {
+      "id": 54,
+      "date": "2026-08-14",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "1.5"
+    },
+    {
+      "id": 55,
+      "date": "2026-08-17",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "8"
+    },
+    {
+      "id": 56,
+      "date": "2026-08-18",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "5"
+    },
+    {
+      "id": 57,
+      "date": "2026-08-18",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "3"
+    },
+    {
+      "id": 58,
+      "date": "2026-08-19",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "4"
+    },
+    {
+      "id": 59,
+      "date": "2026-08-19",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "4"
+    },
+    {
+      "id": 60,
+      "date": "2026-08-20",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "8"
+    },
+    {
+      "id": 61,
+      "date": "2026-08-21",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "6"
+    },
+    {
+      "id": 62,
+      "date": "2026-08-21",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "2"
+    },
+    {
+      "id": 63,
+      "date": "2026-08-24",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "3"
+    },
+    {
+      "id": 64,
+      "date": "2026-08-24",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "3.5"
+    },
+    {
+      "id": 65,
+      "date": "2026-08-24",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "1.5"
+    },
+    {
+      "id": 66,
+      "date": "2026-08-25",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "8"
+    },
+    {
+      "id": 67,
+      "date": "2026-08-26",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "5"
+    },
+    {
+      "id": 68,
+      "date": "2026-08-26",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "3"
+    },
+    {
+      "id": 69,
+      "date": "2026-08-27",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "4"
+    },
+    {
+      "id": 70,
+      "date": "2026-08-27",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "4"
+    },
+    {
+      "id": 71,
+      "date": "2026-08-28",
+      "kind": "frontend",
+      "desc": "Ticket #1281 mobile navigation",
+      "hours": "8"
+    },
+    {
+      "id": 72,
+      "date": "2026-08-31",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "6"
+    },
+    {
+      "id": 73,
+      "date": "2026-08-31",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "2"
+    },
+    {
+      "id": 74,
+      "date": "2026-09-01",
+      "kind": "frontend",
+      "desc": "Ticket #1281 mobile navigation",
+      "hours": "3"
+    },
+    {
+      "id": 75,
+      "date": "2026-09-01",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "3.5"
+    },
+    {
+      "id": 76,
+      "date": "2026-09-01",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "1.5"
+    },
+    {
+      "id": 77,
+      "date": "2026-09-02",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "8"
+    },
+    {
+      "id": 78,
+      "date": "2026-09-03",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "5"
+    },
+    {
+      "id": 79,
+      "date": "2026-09-03",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "3"
+    },
+    {
+      "id": 80,
+      "date": "2026-09-04",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "4"
+    },
+    {
+      "id": 81,
+      "date": "2026-09-04",
+      "kind": "frontend",
+      "desc": "Ticket #1281 mobile navigation",
+      "hours": "4"
+    },
+    {
+      "id": 82,
+      "date": "2026-09-07",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "8"
+    },
+    {
+      "id": 83,
+      "date": "2026-09-08",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "6"
+    },
+    {
+      "id": 84,
+      "date": "2026-09-08",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "2"
+    },
+    {
+      "id": 85,
+      "date": "2026-09-09",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "3"
+    },
+    {
+      "id": 86,
+      "date": "2026-09-09",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "3.5"
+    },
+    {
+      "id": 87,
+      "date": "2026-09-09",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "1.5"
+    },
+    {
+      "id": 88,
+      "date": "2026-09-10",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "8"
+    },
+    {
+      "id": 89,
+      "date": "2026-09-11",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "5"
+    },
+    {
+      "id": 90,
+      "date": "2026-09-11",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "3"
+    },
+    {
+      "id": 91,
+      "date": "2026-09-14",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "4"
+    },
+    {
+      "id": 92,
+      "date": "2026-09-14",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "4"
+    },
+    {
+      "id": 93,
+      "date": "2026-09-15",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "8"
+    },
+    {
+      "id": 94,
+      "date": "2026-09-16",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "6"
+    },
+    {
+      "id": 95,
+      "date": "2026-09-16",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "2"
+    },
+    {
+      "id": 96,
+      "date": "2026-09-17",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "3"
+    },
+    {
+      "id": 97,
+      "date": "2026-09-17",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "3.5"
+    },
+    {
+      "id": 98,
+      "date": "2026-09-17",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "1.5"
+    },
+    {
+      "id": 99,
+      "date": "2026-09-18",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "8"
+    },
+    {
+      "id": 100,
+      "date": "2026-09-21",
+      "kind": "frontend",
+      "desc": "Ticket #1281 mobile navigation",
+      "hours": "5"
+    },
+    {
+      "id": 101,
+      "date": "2026-09-21",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "3"
+    },
+    {
+      "id": 102,
+      "date": "2026-09-22",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "4"
+    },
+    {
+      "id": 103,
+      "date": "2026-09-22",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "4"
+    },
+    {
+      "id": 104,
+      "date": "2026-09-23",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "8"
+    },
+    {
+      "id": 105,
+      "date": "2026-09-24",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "6"
+    },
+    {
+      "id": 106,
+      "date": "2026-09-24",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "2"
+    },
+    {
+      "id": 107,
+      "date": "2026-09-25",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "3"
+    },
+    {
+      "id": 108,
+      "date": "2026-09-25",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "3.5"
+    },
+    {
+      "id": 109,
+      "date": "2026-09-25",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "1.5"
+    },
+    {
+      "id": 110,
+      "date": "2026-09-28",
+      "kind": "backend",
+      "desc": "Ticket #1305 reporting queries",
+      "hours": "8"
+    },
+    {
+      "id": 111,
+      "date": "2026-09-29",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "5"
+    },
+    {
+      "id": 112,
+      "date": "2026-09-29",
+      "kind": "support",
+      "desc": "Release support",
+      "hours": "3"
+    },
+    {
+      "id": 113,
+      "date": "2026-09-30",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "4"
+    },
+    {
+      "id": 114,
+      "date": "2026-09-30",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "4"
+    },
+    {
+      "id": 115,
+      "date": "2026-10-01",
+      "kind": "backend",
+      "desc": "Ticket #1311 invoice PDF generation",
+      "hours": "8"
+    },
+    {
+      "id": 116,
+      "date": "2026-10-02",
+      "kind": "frontend",
+      "desc": "Ticket #1315 invoice download UI",
+      "hours": "5"
+    },
+    {
+      "id": 117,
+      "date": "2026-10-02",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "3"
+    },
+    {
+      "id": 118,
+      "date": "2026-10-05",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "4"
+    },
+    {
+      "id": 119,
+      "date": "2026-10-05",
+      "kind": "frontend",
+      "desc": "Ticket #1302 dashboard charts",
+      "hours": "4"
+    },
+    {
+      "id": 121,
+      "date": "2026-10-07",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "6"
+    },
+    {
+      "id": 122,
+      "date": "2026-10-07",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "2"
+    },
+    {
+      "id": 123,
+      "date": "2026-10-08",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "3"
+    },
+    {
+      "id": 124,
+      "date": "2026-10-08",
+      "kind": "backend",
+      "desc": "Ticket #1290 API rate limiting",
+      "hours": "3.5"
+    },
+    {
+      "id": 125,
+      "date": "2026-10-08",
+      "kind": "support",
+      "desc": "Production incident follow-up",
+      "hours": "1.5"
+    },
+    {
+      "id": 120,
+      "date": "2026-10-09",
+      "kind": "frontend",
+      "desc": "Ticket #1324 onboarding flow",
+      "hours": "8"
+    },
+    {
+      "id": 126,
+      "date": "2026-10-12",
+      "kind": "backend",
+      "desc": "Ticket #1270 search indexing",
+      "hours": "8"
+    },
+    {
+      "id": 127,
+      "date": "2026-10-13",
+      "kind": "frontend",
+      "desc": "Accessibility fixes",
+      "hours": "5"
+    },
+    {
+      "id": 128,
+      "date": "2026-10-13",
+      "kind": "support",
+      "desc": "Weekly support rotation",
+      "hours": "3"
+    }
+  ],
+  "next_id": 129,
+  "approvals": {
+    "2026-07": {
+      "sent": "2026-08-03",
+      "approved": "2026-08-05",
+      "signed_pdf": null
+    },
+    "2026-08": {
+      "sent": "2026-09-01",
+      "approved": "2026-09-04",
+      "signed_pdf": null
+    },
+    "2026-09": {
+      "sent": "2026-10-01",
+      "approved": null,
+      "signed_pdf": null
+    }
+  },
+  "days_off": {
+    "2026-08-10": "leave",
+    "2026-08-11": "leave",
+    "2026-10-06": "sick"
+  }
+}
