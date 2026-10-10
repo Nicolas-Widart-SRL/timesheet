@@ -21,6 +21,18 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
   signed PDFs) to another computer as one JSON file. Import replaces all current data, after saving it
   to a `timesheet.before-import-<date>.json` backup next to the data file.
 
+## Screenshots
+
+![Timesheet: entering time for the current week](docs/screenshots/timesheet.png)
+
+![Timesheet in dark mode, with a sick-leave day](docs/screenshots/timesheet-dark.png)
+
+![Past months: sent and approval tracking, with a month flagged for follow-up](docs/screenshots/past-months.png)
+
+![Settings](docs/screenshots/settings.png)
+
+![Keyboard shortcuts list (Cmd+/)](docs/screenshots/shortcuts.png)
+
 ## Keyboard shortcuts
 
 `Cmd` is Command on macOS and Ctrl on Windows. `Cmd+/` shows this list in the app.
@@ -43,18 +55,6 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
 The current day is the day holding the focused field or button. With nothing focused, it is today
 when today is in the shown week, else the first open day of the week. Shortcuts do nothing while a
 menu or dialog is open, and only `Cmd+/` and `Cmd+,` work outside This month.
-
-## Screenshots
-
-![Timesheet: entering time for the current week](docs/screenshots/timesheet.png)
-
-![Timesheet in dark mode, with a sick-leave day](docs/screenshots/timesheet-dark.png)
-
-![Past months: sent and approval tracking, with a month flagged for follow-up](docs/screenshots/past-months.png)
-
-![Settings](docs/screenshots/settings.png)
-
-![Keyboard shortcuts list (Cmd+/)](docs/screenshots/shortcuts.png)
 
 ## Build and run
 
