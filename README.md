@@ -21,6 +21,16 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
   signed PDFs) to another computer as one JSON file. Import replaces all current data, after saving it
   to a `timesheet.before-import-<date>.json` backup next to the data file.
 
+## Screenshots
+
+![Timesheet: entering time for the current week](docs/screenshots/timesheet.png)
+
+![Timesheet in dark mode, with a sick-leave day](docs/screenshots/timesheet-dark.png)
+
+![Past months: sent and approval tracking, with a month flagged for follow-up](docs/screenshots/past-months.png)
+
+![Settings](docs/screenshots/settings.png)
+
 ## Build and run
 
 Install Rust from <https://rustup.rs>, then:
@@ -29,7 +39,7 @@ Install Rust from <https://rustup.rs>, then:
 cargo run --release          # run
 cargo build --release        # binary in target/release/timesheet(.exe)
 cargo test                   # unit tests
-cargo test -- --ignored      # writes sample October PDFs to target/
+cargo test -- --ignored      # writes sample October PDFs to target/ and README screenshots to docs/screenshots/
 cargo fmt                    # format; CI fails on `cargo fmt --check`
 ```
 
