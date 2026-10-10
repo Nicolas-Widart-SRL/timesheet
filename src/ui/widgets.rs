@@ -257,11 +257,19 @@ pub(super) fn hours_job(
     let gap = |f: &FontId| (f.size * 0.2).round();
     let unit = |f: &FontId| egui::TextFormat::simple(sans(f.size, W::Regular), muted);
     let mut job = LayoutJob::default();
-    job.append(&fmt_hours(total), 0.0, egui::TextFormat::simple(font.clone(), color));
+    job.append(
+        &fmt_hours(total),
+        0.0,
+        egui::TextFormat::simple(font.clone(), color),
+    );
     let mut last = font;
     if let Some((target, font, color)) = target {
         job.append("/", gap(&font), unit(&font));
-        job.append(&fmt_hours(target), gap(&font), egui::TextFormat::simple(font.clone(), color));
+        job.append(
+            &fmt_hours(target),
+            gap(&font),
+            egui::TextFormat::simple(font.clone(), color),
+        );
         last = font;
     }
     job.append("h", gap(&last), unit(&last));
