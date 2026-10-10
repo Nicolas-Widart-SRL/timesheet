@@ -310,7 +310,7 @@ impl App {
                 ui.add_space(22.0);
                 ui.spacing_mut().item_spacing.x = 4.0;
                 for (view, label) in [
-                    (View::Timesheet, "Timesheet"),
+                    (View::Timesheet, "This month"),
                     (View::PastMonths, "Past months"),
                 ] {
                     let on = self.view == view;
