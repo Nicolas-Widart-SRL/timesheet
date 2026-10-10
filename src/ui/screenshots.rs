@@ -6,7 +6,10 @@ use std::path::Path;
 use chrono::NaiveDate;
 use eframe::egui::Key;
 use eframe::egui::accesskit::Role;
-use egui_kittest::{Harness, kittest::Queryable as _};
+use egui_kittest::{
+    Harness,
+    kittest::{NodeT as _, Queryable as _},
+};
 
 use super::{App, View};
 use crate::model::{Appearance, Kind};
@@ -113,4 +116,31 @@ fn arrow_keys_step_hours_between_0_and_8() {
     h.key_press(Key::ArrowUp);
     h.run();
     assert_eq!(hours(&h), "1");
+}
+
+#[test]
+fn tab_follows_the_line_then_moves_to_the_next_day() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut h = harness(dir.path());
+    h.run();
+    h.get_by_role_and_label(Role::ComboBox, "Task type, Tuesday line 2: Support")
+        .focus();
+    h.run();
+
+    let focused = |h: &Harness<'_, App>| {
+        let node = h.get_by(|n| n.is_focused());
+        node.accesskit_node().label().unwrap_or_default()
+    };
+    for label in [
+        "Description, Tuesday line 2",
+        "Hours, Tuesday line 2",
+        "Remove Tuesday line 2",
+    ] {
+        h.key_press(Key::Tab);
+        h.run();
+        assert_eq!(focused(&h), label);
+    }
+    h.key_press(Key::Tab);
+    h.run();
+    assert!(focused(&h).starts_with("Add line"), "{}", focused(&h));
 }
