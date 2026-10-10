@@ -9,6 +9,7 @@ use super::*;
 pub(super) enum Icon {
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
     Close,
     Plus,
     Download,
@@ -33,6 +34,7 @@ impl Icon {
         match self {
             Icon::ChevronLeft => line(&[(15.0, 6.0), (9.0, 12.0), (15.0, 18.0)]),
             Icon::ChevronRight => line(&[(9.0, 6.0), (15.0, 12.0), (9.0, 18.0)]),
+            Icon::ChevronDown => line(&[(6.0, 9.0), (12.0, 15.0), (18.0, 9.0)]),
             Icon::Close => {
                 line(&[(6.0, 6.0), (18.0, 18.0)]);
                 line(&[(18.0, 6.0), (6.0, 18.0)])
@@ -434,6 +436,50 @@ pub(super) fn date_field(ui: &mut Ui, date: &mut NaiveDate, id_salt: &str, a11y:
         }
         _ => false,
     }
+}
+
+/// Full-width dropdown styled like the 44px settings text fields, with a chevron.
+pub(super) fn select_field<T: Copy + PartialEq>(
+    ui: &mut Ui,
+    id_salt: &str,
+    a11y: &str,
+    value: &mut T,
+    options: impl IntoIterator<Item = T>,
+    label: impl Fn(T) -> &'static str,
+) {
+    const HEIGHT: f32 = 44.0;
+    const CHEVRON: f32 = 16.0;
+    let c = colors(ui);
+    let font = sans(15.0, W::Regular);
+    let row = ui.fonts_mut(|f| f.row_height(&font)).max(CHEVRON);
+    ui.scope(|ui| {
+        let s = ui.spacing_mut();
+        s.interact_size.y = HEIGHT;
+        // ComboBox top-aligns its content, so vertical padding centres it.
+        s.button_padding = vec2(12.0, (HEIGHT - row) / 2.0);
+        s.icon_width = CHEVRON;
+        let focus = ui.visuals().selection.stroke;
+        let w = &mut ui.visuals_mut().widgets;
+        for state in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
+            state.weak_bg_fill = c.surface;
+        }
+        w.open.bg_stroke = focus;
+        let response = egui::ComboBox::from_id_salt(id_salt)
+            .selected_text(egui::RichText::new(label(*value)).font(font).color(c.ink))
+            .width(ui.available_width())
+            .icon(move |ui, rect, _, _| {
+                Icon::ChevronDown.paint(ui.painter(), rect.center(), CHEVRON, c.muted, 2.0);
+            })
+            .show_ui(ui, |ui| {
+                for option in options {
+                    ui.selectable_value(value, option, label(option));
+                }
+            })
+            .response;
+        let radius = ui.visuals().widgets.inactive.corner_radius.nw;
+        focus_ring(ui, &response, response.rect, radius);
+        response.widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, true, a11y));
+    });
 }
 
 /// CSS-like `flex-wrap` row: each item gets at least its `basis` width and lines share leftover width by `grow`.
