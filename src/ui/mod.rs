@@ -18,6 +18,7 @@ use crate::model::{
     Store, day_range, fmt_hours, step_hours, weekday_long, weekday_short,
 };
 use crate::pdf;
+use crate::tickets::Tickets;
 
 mod past_months;
 #[cfg(test)]
@@ -25,10 +26,12 @@ mod screenshots;
 mod settings;
 mod shortcuts;
 mod theme;
+mod ticket_field;
 mod timesheet;
 mod widgets;
 
 use theme::*;
+use ticket_field::TicketPicker;
 use widgets::*;
 
 // ---------------------------------------------------------------------------
@@ -96,6 +99,7 @@ pub struct App {
     /// Day card holding the focused widget at the end of the last frame.
     focused_day: Option<NaiveDate>,
     shortcuts_open: bool,
+    tickets: TicketPicker,
 }
 
 fn data_path() -> PathBuf {
@@ -107,10 +111,17 @@ fn data_path() -> PathBuf {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        Self::with(cc, data_path(), chrono::Local::now().date_naive())
+        let ctx = cc.egui_ctx.clone();
+        let tickets = Tickets::start(move || ctx.request_repaint());
+        Self::with(cc, data_path(), chrono::Local::now().date_naive(), tickets)
     }
 
-    fn with(cc: &eframe::CreationContext<'_>, data_path: PathBuf, today: NaiveDate) -> Self {
+    fn with(
+        cc: &eframe::CreationContext<'_>,
+        data_path: PathBuf,
+        today: NaiveDate,
+        tickets: Tickets,
+    ) -> Self {
         setup_fonts(&cc.egui_ctx);
         setup_style(&cc.egui_ctx);
         let (store, banner) = Store::open(data_path.clone());
@@ -131,6 +142,7 @@ impl App {
             focus: None,
             focused_day: None,
             shortcuts_open: false,
+            tickets: TicketPicker::new(tickets),
         };
         app.open_month(Month::of(today));
         app

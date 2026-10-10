@@ -12,6 +12,11 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
 - An empty weekday can be marked as a day off (**Public holiday**, **Leave**, **Sick leave** or
   **Unpaid leave**). A day off counts 0 h, so the month and week targets drop by 8 h, and both PDFs
   show it as a labelled row.
+- Typing a ticket number such as `#4210` in a description lists the matching Azure DevOps work
+  items. Pick one with the mouse, or with `↑` / `↓` and `Enter`, to get
+  `#42107 : Invoice PDF layout`. This needs the Azure CLI (`az`), logged in
+  (`az login`) to an account with an Azure DevOps organization; the first organization is searched.
+  Without it, `#1234` stays plain text.
 - Consultant, client and project names are set in Settings (click the avatar). Choosing a country
   there (Belgium) marks its public holidays as days off; **Mark as workday** overrides one. Holidays
   are computed locally, without network access.
@@ -50,7 +55,8 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
 | `Cmd+J` | Next open day. |
 | `Cmd+,` | Open Settings. |
 | `F` / `B` / `S` | On a focused task-type button: Frontend / Backend / Support. |
-| `Esc` | Leave the focused field. |
+| `↑` / `↓`, `Enter` | In the ticket list under a description: highlight a ticket, put it in the description. |
+| `Esc` | Close the ticket list, else leave the focused field. |
 
 The current day is the day holding the focused field or button. With nothing focused, it is today
 when today is in the shown week, else the first open day of the week. Shortcuts do nothing while a
