@@ -105,8 +105,10 @@ impl App {
             let mut actions = Vec::new();
             let mut cards = Vec::new();
             for &date in &weeks[this.week] {
-                let card = ui
-                    .scope(|ui| day_card(ui, &mut this.store.data, date, &mut focus, &mut actions));
+                let card = ui.scope(|ui| {
+                    let data = &mut this.store.data;
+                    day_card(ui, data, &mut this.tickets, date, &mut focus, &mut actions)
+                });
                 dirty |= card.inner;
                 cards.push((date, card.response.rect));
             }
@@ -484,6 +486,7 @@ fn take_focus(response: &Response, pending: &mut Option<Focus>, target: Focus) {
 fn day_card(
     ui: &mut Ui,
     data: &mut Data,
+    tickets: &mut TicketPicker,
     date: NaiveDate,
     focus: &mut Option<Focus>,
     actions: &mut Vec<Action>,
@@ -657,25 +660,13 @@ fn day_card(
                                 vec2(76.0 + 6.0 + unit.size().x + 12.0 + 48.0, 44.0),
                                 Sense::hover(),
                             );
-                            let desc = ui.add(
-                                TextEdit::singleline(&mut entry.desc)
-                                    .id(ui.make_persistent_id(("desc", entry.id)))
-                                    .hint_text("What did you do? e.g. ticket #1234")
-                                    .font(sans(15.0, W::Regular))
-                                    .text_color(c.ink)
-                                    .vertical_align(Align::Center)
-                                    .margin(Margin::symmetric(12, 0))
-                                    .min_size(vec2(0.0, 44.0))
-                                    .desired_width(ui.available_width()),
+                            let (desc, chosen) = tickets.desc_field(
+                                ui,
+                                entry.id,
+                                &mut entry.desc,
+                                format!("Description, {day_name} line {line_no}"),
                             );
-                            desc.widget_info(|| {
-                                WidgetInfo::labeled(
-                                    WidgetType::TextEdit,
-                                    true,
-                                    format!("Description, {day_name} line {line_no}"),
-                                )
-                            });
-                            dirty |= desc.changed();
+                            dirty |= desc.changed() || chosen;
                             take_focus(&desc, focus, Focus::Desc(entry.id));
                             if k == 0 {
                                 take_focus(&desc, focus, Focus::Day(date));

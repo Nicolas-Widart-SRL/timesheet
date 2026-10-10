@@ -13,8 +13,13 @@ use egui_kittest::{
 
 use super::{App, View};
 use crate::model::{Appearance, Kind};
+use crate::tickets::{Ticket, Tickets};
 
 fn harness(dir: &Path) -> Harness<'static, App> {
+    harness_with(dir, Tickets::off)
+}
+
+fn harness_with(dir: &Path, tickets: fn() -> Tickets) -> Harness<'static, App> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let data_path = dir.join("timesheet.json");
     std::fs::copy(root.join("tests/fixtures/screenshots.json"), &data_path).unwrap();
@@ -22,7 +27,7 @@ fn harness(dir: &Path) -> Harness<'static, App> {
     Harness::builder()
         .with_size([1400.0, 940.0])
         .with_pixels_per_point(2.0)
-        .build_eframe(move |cc| App::with(cc, data_path.clone(), today))
+        .build_eframe(move |cc| App::with(cc, data_path.clone(), today, tickets()))
 }
 
 fn save(harness: &mut Harness<'_, App>, name: &str) {
@@ -308,4 +313,89 @@ fn cmd_comma_opens_settings_from_any_screen() {
         !h.state().shortcuts_open,
         "settings replace the shortcut list"
     );
+}
+
+fn some_tickets() -> Tickets {
+    let ticket = |id, title: &str| Ticket {
+        id,
+        title: title.to_owned(),
+    };
+    Tickets::fixed(vec![
+        ticket(42107, "Invoice PDF layout"),
+        ticket(42108, "Invoice email template"),
+        ticket(4, "Unrelated"),
+    ])
+}
+
+/// Focuses the description of a new line on Wednesday 14 (empty) and types `typed` in it.
+fn type_in_new_line(h: &mut Harness<'_, App>, typed: &str) {
+    h.run();
+    press(h, Modifiers::COMMAND, Key::Num3);
+    press(h, Modifiers::NONE, Key::Enter);
+    h.event(Event::Text(typed.into()));
+    h.run();
+}
+
+fn desc(h: &Harness<'_, App>) -> String {
+    h.state().data().lines(oct(14)).next().unwrap().desc.clone()
+}
+
+#[test]
+fn ticket_list_completes_the_typed_number() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut h = harness_with(dir.path(), some_tickets);
+    type_in_new_line(&mut h, "Pair on #4210");
+    h.get_by_role_and_label(Role::Button, "#42107 : Invoice PDF layout");
+    h.get_by_role_and_label(Role::Button, "#42108 : Invoice email template");
+    assert!(h.query_by_label("#4 : Unrelated").is_none());
+
+    press(&mut h, Modifiers::NONE, Key::ArrowDown);
+    press(&mut h, Modifiers::NONE, Key::ArrowDown);
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    assert_eq!(desc(&h), "Pair on #42107 : Invoice PDF layout");
+    assert_eq!(focused(&h), "Description, Wednesday line 1");
+    assert!(
+        h.query_by_label("#42108 : Invoice email template")
+            .is_none()
+    );
+
+    // With the list closed, Enter goes to the hours again.
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    assert_eq!(focused(&h), "Hours, Wednesday line 1");
+}
+
+#[test]
+fn ticket_list_takes_clicks_and_closes_on_escape() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut h = harness_with(dir.path(), some_tickets);
+    type_in_new_line(&mut h, "#42");
+    press(&mut h, Modifiers::NONE, Key::Escape);
+    assert!(
+        h.query_by_label("#42108 : Invoice email template")
+            .is_none()
+    );
+    assert_eq!(focused(&h), "Description, Wednesday line 1");
+
+    h.event(Event::Text("10".into()));
+    h.run();
+    h.get_by_role_and_label(Role::Button, "#42108 : Invoice email template")
+        .click();
+    h.run();
+    assert_eq!(desc(&h), "#42108 : Invoice email template");
+    assert_eq!(focused(&h), "Description, Wednesday line 1");
+}
+
+#[test]
+fn without_az_a_ticket_number_is_plain_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut h = harness(dir.path());
+    type_in_new_line(&mut h, "#1234");
+    assert!(h.query_by_label("Searching tickets…").is_none());
+    let ticket_rows = h.query_all_by_role(Role::Button).filter(|n| {
+        n.accesskit_node()
+            .label()
+            .is_some_and(|l| l.starts_with('#'))
+    });
+    assert_eq!(ticket_rows.count(), 0);
+    assert_eq!(desc(&h), "#1234");
 }

@@ -4,6 +4,7 @@ mod fonts;
 mod holidays;
 mod model;
 mod pdf;
+mod tickets;
 mod ui;
 
 fn main() -> eframe::Result {

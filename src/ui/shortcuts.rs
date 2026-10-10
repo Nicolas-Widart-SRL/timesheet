@@ -121,7 +121,11 @@ impl App {
                         "Copy the previous filled day into an empty day",
                     ),
                     (key(&TODAY), "Go to today"),
-                    ("Esc".to_owned(), "Leave the focused field"),
+                    ("↑ / ↓, Enter".to_owned(), "Ticket list: choose a ticket"),
+                    (
+                        "Esc".to_owned(),
+                        "Close the ticket list, else leave the field",
+                    ),
                 ],
             ),
             (
