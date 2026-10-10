@@ -21,6 +21,29 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
   signed PDFs) to another computer as one JSON file. Import replaces all current data, after saving it
   to a `timesheet.before-import-<date>.json` backup next to the data file.
 
+## Keyboard shortcuts
+
+`Cmd` is Command on macOS and Ctrl on Windows. `Cmd+/` shows this list in the app.
+
+| Key | Action |
+| --- | --- |
+| `Cmd+1` … `Cmd+5` | Jump to Monday … Friday of the shown week. A weekday outside the month does nothing. |
+| `Cmd+Enter` | Add a line to the current day and focus its description. |
+| `Enter` in a description | Focus that line's hours. |
+| `Enter` in hours | Focus the next line's description. On the last line: add a line if the day is under 8 h, else jump to the next open day. |
+| `Cmd+D` | Copy the previous filled day into the current day, if it is empty. |
+| `Cmd+T` | Go to today. |
+| `Cmd+[` / `Cmd+]` | Previous / next week. |
+| `Cmd+Shift+[` / `Cmd+Shift+]` | Previous / next month. |
+| `Cmd+J` | Next open day. |
+| `Cmd+,` | Open Settings. |
+| `F` / `B` / `S` | On a focused task-type button: Frontend / Backend / Support. |
+| `Esc` | Leave the focused field. |
+
+The current day is the day holding the focused field or button. With nothing focused, it is today
+when today is in the shown week, else the first open day of the week. Shortcuts do nothing while a
+menu or dialog is open, and only `Cmd+/` and `Cmd+,` work outside This month.
+
 ## Screenshots
 
 ![Timesheet: entering time for the current week](docs/screenshots/timesheet.png)
@@ -30,6 +53,8 @@ mockups in `mockups/` (not tracked by git). Runs on macOS and Windows.
 ![Past months: sent and approval tracking, with a month flagged for follow-up](docs/screenshots/past-months.png)
 
 ![Settings](docs/screenshots/settings.png)
+
+![Keyboard shortcuts list (Cmd+/)](docs/screenshots/shortcuts.png)
 
 ## Build and run
 
