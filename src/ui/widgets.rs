@@ -13,7 +13,6 @@ pub(super) enum Icon {
     Close,
     Plus,
     Download,
-    Clock,
     Check,
     FileCheck,
     Paperclip,
@@ -51,10 +50,6 @@ impl Icon {
                 line(&[(12.0, 4.0), (12.0, 15.0)]);
                 line(&[(7.0, 10.0), (12.0, 15.0), (17.0, 10.0)]);
                 line(&[(5.0, 20.0), (19.0, 20.0)])
-            }
-            Icon::Clock => {
-                p.circle_stroke(at(12.0, 12.0), 9.0 * s, stroke);
-                line(&[(12.0, 7.0), (12.0, 12.0), (15.0, 14.0)])
             }
             Icon::Check => line(&[(5.0, 12.5), (10.0, 17.0), (19.0, 7.5)]),
             Icon::FileCheck => {
@@ -131,6 +126,41 @@ impl Icon {
             }
         };
     }
+}
+
+/// Paints the app icon (`assets/icon/icon.svg`) filling the square `rect`: a clock ringed by
+/// five weekday arcs, Friday faded. Fixed light-theme colors, like the Dock icon.
+pub(super) fn paint_app_mark(p: &Painter, rect: Rect) {
+    // SVG units: the tile spans 100..924, the clock is centred on 512.
+    let s = rect.width() / 824.0;
+    let at = |x: f32, y: f32| pos2(rect.left() + (x - 100.0) * s, rect.top() + (y - 100.0) * s);
+    p.rect_filled(rect, CornerRadius::same((185.0 * s) as u8), LIGHT.accent);
+    for day in 0..5 {
+        // 72° per weekday, minus a 9.17° gap, clockwise from 12 o'clock.
+        let start = 72.0 * day as f32 + 4.585;
+        let pts = (0..=12)
+            .map(|i| {
+                let a = (start + 62.83 * i as f32 / 12.0).to_radians();
+                at(512.0 + 250.0 * a.sin(), 512.0 - 250.0 * a.cos())
+            })
+            .collect();
+        let color = if day < 4 {
+            Color32::WHITE
+        } else {
+            Color32::WHITE.gamma_multiply(0.3)
+        };
+        p.add(Shape::line(pts, Stroke::new(72.0 * s, color)));
+    }
+    let hand = |x: f32, y: f32, width: f32| {
+        p.line_segment(
+            [at(512.0, 512.0), at(x, y)],
+            Stroke::new(width * s, Color32::WHITE),
+        );
+        p.circle_filled(at(x, y), width * s / 2.0, Color32::WHITE);
+    };
+    hand(417.0, 457.0, 52.0);
+    hand(651.0, 432.0, 40.0);
+    p.circle_filled(at(512.0, 512.0), 40.0 * s, Color32::WHITE);
 }
 
 #[derive(Clone)]

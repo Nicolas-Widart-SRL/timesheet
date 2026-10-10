@@ -57,6 +57,13 @@ cargo bundle --release       # target/release/bundle/osx/Timesheet.app and dmg/T
 
 Drag `Timesheet.app` to `/Applications`. Bundle settings are in `[package.metadata.bundle]` in `Cargo.toml`.
 
+The app icon source is `assets/icon/icon.svg`. After you edit it, render the bundle PNGs and the Windows `icon.ico` again (macOS only; `build.rs`
+embeds `icon.ico` in the `.exe`):
+
+```sh
+swift assets/icon/render.swift assets/icon/icon.svg assets/icon
+```
+
 The app is not signed. It opens normally on the Mac that built it. On another Mac, open it once with
 right-click › **Open**, or System Settings › Privacy & Security › **Open Anyway**.
 

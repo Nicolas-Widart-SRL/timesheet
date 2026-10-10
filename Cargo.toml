@@ -8,6 +8,19 @@ license = "MIT"
 name = "Timesheet"
 identifier = "com.nwidart.timesheet"
 category = "public.app-category.productivity"
+# Rendered from assets/icon/icon.svg.
+icon = [
+    "assets/icon/16x16.png",
+    "assets/icon/16x16@2x.png",
+    "assets/icon/32x32.png",
+    "assets/icon/32x32@2x.png",
+    "assets/icon/128x128.png",
+    "assets/icon/128x128@2x.png",
+    "assets/icon/256x256.png",
+    "assets/icon/256x256@2x.png",
+    "assets/icon/512x512.png",
+    "assets/icon/512x512@2x.png",
+]
 
 [dependencies]
 base64 = "0.22"
@@ -21,6 +34,9 @@ rfd = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ttf-parser = "0.25"
+
+[build-dependencies]
+winresource = "0.1"
 
 [dev-dependencies]
 egui_kittest = { version = "0.36", features = ["wgpu", "snapshot", "eframe"] }
