@@ -473,7 +473,8 @@ fn signed_file_row(ui: &mut Ui, name: &str, month_label: &str, action: &mut Opti
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
-            let (rect, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+            // Full row height, so the icon centers on the 36 px name and remove button.
+            let (rect, _) = ui.allocate_exact_size(vec2(18.0, 36.0), Sense::hover());
             Icon::FileCheck.paint(ui.painter(), rect.center(), 18.0, c.ok_fg, 2.0);
             // Leaves room for the item spacing before the name and the remove button.
             let name_w = (ui.available_width() - 8.0 - 8.0 - 36.0).max(0.0);
