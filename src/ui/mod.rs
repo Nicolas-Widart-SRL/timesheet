@@ -304,8 +304,8 @@ impl App {
             ui.set_height(64.0);
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
-                let (rect, _) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::hover());
-                Icon::Clock.paint(ui.painter(), rect.center(), 24.0, c.accent, 2.0);
+                let (rect, _) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::hover());
+                paint_app_mark(ui.painter(), rect);
                 text(ui, "Timesheet", sans(17.0, W::Bold), c.ink);
                 ui.add_space(22.0);
                 ui.spacing_mut().item_spacing.x = 4.0;
