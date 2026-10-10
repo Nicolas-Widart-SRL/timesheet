@@ -519,68 +519,18 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                             &format!("Task type, {day_name} line {line_no}"),
                         );
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            let remove = Btn::base(c, "")
-                                .icon(Icon::Close, 16.0)
-                                .fg(c.muted)
-                                .min(44.0, 44.0)
-                                .a11y(format!("Remove {day_name} line {line_no}"))
-                                .show(ui);
-                            if remove.clicked() {
-                                actions.push(Action::Remove(entry.id));
-                            }
+                            // Reserve the hours and remove slot so the description is created
+                            // first: Tab goes description, hours, remove, then the next button.
                             ui.spacing_mut().item_spacing.x = 6.0;
-                            text(ui, "h", sans(15.0, W::Regular), c.muted);
-                            ui.scope(|ui| {
-                                if over {
-                                    let widgets = &mut ui.visuals_mut().widgets;
-                                    widgets.inactive.bg_stroke = Stroke::new(1.0, c.danger);
-                                    widgets.hovered.bg_stroke = Stroke::new(1.0, c.danger);
-                                }
-                                // Arrow up/down step the focused field by one hour.
-                                let id = ui.make_persistent_id(("hours", entry.id));
-                                if ui.memory(|m| m.has_focus(id)) {
-                                    let delta = ui.input_mut(|i| {
-                                        if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
-                                            1.0
-                                        } else if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
-                                            -1.0
-                                        } else {
-                                            0.0
-                                        }
-                                    });
-                                    if delta != 0.0 {
-                                        let stepped = step_hours(&entry.hours, delta);
-                                        dirty |= stepped != entry.hours;
-                                        entry.hours = stepped;
-                                    }
-                                }
-                                let hours = ui.add(
-                                    TextEdit::singleline(&mut entry.hours)
-                                        .id(id)
-                                        .font(mono(15.0, false))
-                                        .text_color(c.ink)
-                                        .horizontal_align(Align::RIGHT)
-                                        .vertical_align(Align::Center)
-                                        .margin(Margin {
-                                            left: 12,
-                                            right: 8,
-                                            top: 0,
-                                            bottom: 0,
-                                        })
-                                        .min_size(vec2(76.0, 44.0))
-                                        .desired_width(56.0)
-                                        .char_limit(5),
-                                );
-                                hours.widget_info(|| {
-                                    WidgetInfo::labeled(
-                                        WidgetType::TextEdit,
-                                        true,
-                                        format!("Hours, {day_name} line {line_no}"),
-                                    )
-                                });
-                                dirty |= hours.changed();
-                            });
-                            ui.spacing_mut().item_spacing.x = 12.0;
+                            let unit = ui.painter().layout_no_wrap(
+                                "h".to_owned(),
+                                sans(15.0, W::Regular),
+                                c.muted,
+                            );
+                            let (slot, _) = ui.allocate_exact_size(
+                                vec2(76.0 + 6.0 + unit.size().x + 12.0 + 48.0, 44.0),
+                                Sense::hover(),
+                            );
                             let desc = ui.add(
                                 TextEdit::singleline(&mut entry.desc)
                                     .id_salt(("desc", entry.id))
@@ -600,6 +550,74 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                 )
                             });
                             dirty |= desc.changed();
+                            let slot_ui = UiBuilder::new()
+                                .max_rect(slot)
+                                .layout(Layout::left_to_right(Align::Center));
+                            ui.scope_builder(slot_ui, |ui| {
+                                ui.spacing_mut().item_spacing.x = 6.0;
+                                ui.scope(|ui| {
+                                    if over {
+                                        let widgets = &mut ui.visuals_mut().widgets;
+                                        widgets.inactive.bg_stroke = Stroke::new(1.0, c.danger);
+                                        widgets.hovered.bg_stroke = Stroke::new(1.0, c.danger);
+                                    }
+                                    // Arrow up/down step the focused field by one hour.
+                                    let id = ui.make_persistent_id(("hours", entry.id));
+                                    if ui.memory(|m| m.has_focus(id)) {
+                                        let delta = ui.input_mut(|i| {
+                                            if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
+                                                1.0
+                                            } else if i.consume_key(Modifiers::NONE, Key::ArrowDown)
+                                            {
+                                                -1.0
+                                            } else {
+                                                0.0
+                                            }
+                                        });
+                                        if delta != 0.0 {
+                                            let stepped = step_hours(&entry.hours, delta);
+                                            dirty |= stepped != entry.hours;
+                                            entry.hours = stepped;
+                                        }
+                                    }
+                                    let hours = ui.add(
+                                        TextEdit::singleline(&mut entry.hours)
+                                            .id(id)
+                                            .font(mono(15.0, false))
+                                            .text_color(c.ink)
+                                            .horizontal_align(Align::RIGHT)
+                                            .vertical_align(Align::Center)
+                                            .margin(Margin {
+                                                left: 12,
+                                                right: 8,
+                                                top: 0,
+                                                bottom: 0,
+                                            })
+                                            .min_size(vec2(76.0, 44.0))
+                                            .desired_width(56.0)
+                                            .char_limit(5),
+                                    );
+                                    hours.widget_info(|| {
+                                        WidgetInfo::labeled(
+                                            WidgetType::TextEdit,
+                                            true,
+                                            format!("Hours, {day_name} line {line_no}"),
+                                        )
+                                    });
+                                    dirty |= hours.changed();
+                                });
+                                ui.spacing_mut().item_spacing.x = 12.0;
+                                text(ui, "h", sans(15.0, W::Regular), c.muted);
+                                let remove = Btn::base(c, "")
+                                    .icon(Icon::Close, 16.0)
+                                    .fg(c.muted)
+                                    .min(48.0, 44.0)
+                                    .a11y(format!("Remove {day_name} line {line_no}"))
+                                    .show(ui);
+                                if remove.clicked() {
+                                    actions.push(Action::Remove(entry.id));
+                                }
+                            });
                         });
                     });
                 });
