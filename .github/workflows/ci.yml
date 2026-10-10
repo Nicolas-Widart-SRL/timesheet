@@ -48,7 +48,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        # Windows runners are slow and costly: only test on Windows for release tags.
+        os: ${{ startsWith(github.ref, 'refs/tags/v') && fromJSON('["macos-latest", "windows-latest"]') || fromJSON('["macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
