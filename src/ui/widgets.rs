@@ -17,6 +17,10 @@ pub(super) enum Icon {
     Check,
     FileCheck,
     Paperclip,
+    Folder,
+    Monitor,
+    Sun,
+    Moon,
 }
 
 impl Icon {
@@ -79,6 +83,50 @@ impl Icon {
                 arc(&mut pts, 16.35, 7.85, 3.32, 225.0);
                 arc(&mut pts, 9.0, 17.5, 1.7, 45.0);
                 pts.push((15.5, 8.6));
+                line(&pts)
+            }
+            Icon::Folder => line(&[
+                (3.0, 6.0),
+                (9.0, 6.0),
+                (11.0, 8.0),
+                (21.0, 8.0),
+                (21.0, 19.0),
+                (3.0, 19.0),
+                (3.0, 6.0),
+            ]),
+            Icon::Monitor => {
+                line(&[
+                    (3.0, 4.0),
+                    (21.0, 4.0),
+                    (21.0, 16.0),
+                    (3.0, 16.0),
+                    (3.0, 4.0),
+                ]);
+                line(&[(8.0, 20.0), (16.0, 20.0)]);
+                line(&[(12.0, 16.0), (12.0, 20.0)])
+            }
+            Icon::Sun => {
+                for i in 0..8 {
+                    let a = (45.0 * i as f32).to_radians();
+                    let (dx, dy) = (a.cos(), a.sin());
+                    line(&[
+                        (12.0 + 7.0 * dx, 12.0 + 7.0 * dy),
+                        (12.0 + 9.5 * dx, 12.0 + 9.5 * dy),
+                    ]);
+                }
+                p.circle_stroke(at(12.0, 12.0), 4.0 * s, stroke)
+            }
+            Icon::Moon => {
+                // Crescent: the arc of a r=8 circle outside a r=6 circle at (17, 7), then back along the inner one.
+                let mut pts = Vec::new();
+                for i in 0..=24 {
+                    let a = (1.4 + (268.6 - 1.4) * i as f32 / 24.0).to_radians();
+                    pts.push((12.0 + 8.0 * a.cos(), 12.0 + 8.0 * a.sin()));
+                }
+                for i in 0..=12 {
+                    let a = (210.0 - 150.0 * i as f32 / 12.0).to_radians();
+                    pts.push((17.0 + 6.0 * a.cos(), 7.0 + 6.0 * a.sin()));
+                }
                 line(&pts)
             }
         };
@@ -511,6 +559,61 @@ pub(super) fn select_field<T: Copy + PartialEq>(
         focus_ring(ui, &response, response.rect, radius);
         response.widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, true, a11y));
     });
+}
+
+/// Full-width radio group of 36 px segments on a `chip` track; the selected one is raised.
+/// Returns true when the selection changed.
+pub(super) fn segmented<T: Copy + PartialEq>(
+    ui: &mut Ui,
+    value: &mut T,
+    options: &[(T, Icon, &str)],
+) -> bool {
+    const PAD: f32 = 4.0;
+    let c = colors(ui);
+    let (track, _) =
+        ui.allocate_exact_size(vec2(ui.available_width(), 36.0 + 2.0 * PAD), Sense::hover());
+    ui.painter().rect_filled(track, 10, c.chip);
+    let inner = track.shrink(PAD);
+    let w = (inner.width() - PAD * (options.len() as f32 - 1.0)) / options.len() as f32;
+    let mut changed = false;
+    for (i, &(option, icon, label)) in options.iter().enumerate() {
+        let rect = Rect::from_min_size(
+            pos2(inner.left() + i as f32 * (w + PAD), inner.top()),
+            vec2(w, inner.height()),
+        );
+        let response = ui.interact(rect, ui.id().with(("segment", i)), Sense::click());
+        if response.clicked() && *value != option {
+            *value = option;
+            changed = true;
+        }
+        let selected = *value == option;
+        response
+            .widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, selected, label));
+        let p = ui.painter();
+        if selected {
+            p.rect_filled(rect, 8, c.surface);
+            p.rect_stroke(
+                rect,
+                8,
+                Stroke::new(1.0, c.button_border),
+                StrokeKind::Inside,
+            );
+        } else if response.hovered() {
+            p.rect_filled(rect, 8, c.border);
+        }
+        focus_ring(ui, &response, rect, 8);
+        let fg = if selected { c.ink } else { c.ink2 };
+        let galley = p.layout_no_wrap(label.to_owned(), sans(14.0, W::Medium), fg);
+        let x = rect.center().x - (16.0 + 6.0 + galley.size().x) / 2.0;
+        icon.paint(p, pos2(x + 8.0, rect.center().y), 16.0, fg, 2.0);
+        p.galley(
+            pos2(x + 22.0, rect.center().y - galley.size().y / 2.0),
+            galley,
+            fg,
+        );
+        response.on_hover_cursor(CursorIcon::PointingHand);
+    }
+    changed
 }
 
 /// CSS-like `flex-wrap` row: each item gets at least its `basis` width and lines share leftover width by `grow`.
