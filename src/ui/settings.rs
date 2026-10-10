@@ -50,23 +50,14 @@ impl App {
                     ui.add_space(8.0);
                 }
                 text(ui, "Public holidays", sans(14.0, W::SemiBold), c.ink2);
-                let country_label = |c: Option<Country>| c.map_or("None", Country::label);
-                egui::ComboBox::from_id_salt("country")
-                    .selected_text(
-                        egui::RichText::new(country_label(draft.country))
-                            .font(sans(15.0, W::Regular))
-                            .color(c.ink),
-                    )
-                    .width(ui.available_width())
-                    .show_ui(ui, |ui| {
-                        for c in std::iter::once(None).chain(Country::ALL.map(Some)) {
-                            ui.selectable_value(&mut draft.country, c, country_label(c));
-                        }
-                    })
-                    .response
-                    .widget_info(|| {
-                        WidgetInfo::labeled(WidgetType::ComboBox, true, "Public holidays")
-                    });
+                select_field(
+                    ui,
+                    "country",
+                    "Public holidays",
+                    &mut draft.country,
+                    std::iter::once(None).chain(Country::ALL.map(Some)),
+                    |c| c.map_or("None", Country::label),
+                );
                 text(
                     ui,
                     "Marked as days off unless you mark them as workdays.",
@@ -75,20 +66,14 @@ impl App {
                 );
                 ui.add_space(8.0);
                 text(ui, "Appearance", sans(14.0, W::SemiBold), c.ink2);
-                egui::ComboBox::from_id_salt("appearance")
-                    .selected_text(
-                        egui::RichText::new(draft.appearance.label())
-                            .font(sans(15.0, W::Regular))
-                            .color(c.ink),
-                    )
-                    .width(ui.available_width())
-                    .show_ui(ui, |ui| {
-                        for a in Appearance::ALL {
-                            ui.selectable_value(&mut draft.appearance, a, a.label());
-                        }
-                    })
-                    .response
-                    .widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, true, "Appearance"));
+                select_field(
+                    ui,
+                    "appearance",
+                    "Appearance",
+                    &mut draft.appearance,
+                    Appearance::ALL,
+                    Appearance::label,
+                );
                 text(
                     ui,
                     "System follows your computer's light or dark mode. PDFs stay light.",
