@@ -172,18 +172,13 @@ impl App {
             ui.horizontal(|ui| {
                 text(ui, month.name(), sans(17.0, W::Bold), c.ink);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let mut job = LayoutJob::default();
-                    job.append(
-                        &fmt_hours(total),
-                        0.0,
-                        egui::TextFormat::simple(mono(22.0, true), c.ink),
-                    );
-                    job.append(
-                        &format!(" / {} h", fmt_hours(target)),
-                        0.0,
-                        egui::TextFormat::simple(mono(14.0, false), c.muted),
-                    );
-                    ui.label(job);
+                    ui.label(hours_job(
+                        total,
+                        mono(22.0, true),
+                        c.ink,
+                        Some((target, mono(14.0, false), c.muted)),
+                        c.muted,
+                    ));
                 });
             });
             let segments: Vec<(f32, Color32)> = by_kind
@@ -199,7 +194,7 @@ impl App {
                         swatch(ui, c.kind(k));
                         text(ui, k.label(), sans(15.0, W::Regular), c.ink);
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            text(ui, format!("{} h", fmt_hours(h)), mono(15.0, false), c.ink);
+                            ui.label(hours_job(h, mono(15.0, false), c.ink, None, c.muted));
                         });
                     });
                 }
@@ -445,12 +440,13 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                             vec2(10.0, 4.0),
                             99,
                         );
-                        text(
-                            ui,
-                            format!("{} / 8 h", fmt_hours(total)),
+                        ui.label(hours_job(
+                            total,
                             mono(15.0, true),
                             c.ink,
-                        );
+                            Some((MAX_DAY_HOURS, mono(15.0, true), c.ink)),
+                            c.muted,
+                        ));
                         bar(ui, ui.available_width(), 8.0, &segments);
                     });
                 });

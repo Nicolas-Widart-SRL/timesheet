@@ -157,12 +157,13 @@ impl App {
                             sans(15.0, W::SemiBold),
                             c.accent,
                         );
-                        text(
-                            ui,
-                            format!("{} / {} h", fmt_hours(total), fmt_hours(target)),
+                        ui.label(hours_job(
+                            total,
                             mono(14.0, false),
                             c.ink,
-                        );
+                            Some((target, mono(14.0, false), c.ink)),
+                            c.muted,
+                        ));
                         ui.spacing_mut().item_spacing.x = 10.0;
                         bar(
                             ui,
@@ -239,11 +240,12 @@ impl App {
                 match column {
                     0 => {
                         text(ui, &label, sans(17.0, W::Bold), c.ink);
-                        let mut job = LayoutJob::default();
-                        job.append(
-                            &format!("{} h", fmt_hours(data.month_total(month))),
-                            0.0,
-                            egui::TextFormat::simple(mono(14.0, true), c.ink),
+                        let mut job = hours_job(
+                            data.month_total(month),
+                            mono(14.0, true),
+                            c.ink,
+                            None,
+                            c.muted,
                         );
                         let workdays = data.workdays(&month.weekdays()).len();
                         let days = format!(" · {workdays} workdays");

@@ -245,6 +245,37 @@ pub(super) fn text(ui: &mut Ui, s: impl Into<String>, font: FontId, color: Color
     ui.label(egui::RichText::new(s).font(font).color(color))
 }
 
+/// Hours as mono figures with "/" and "h" in muted sans, tightly spaced: "6 / 8 h", "176 h".
+/// The target figure has its own font and color; the units take the size of the figure before them.
+pub(super) fn hours_job(
+    total: f64,
+    font: FontId,
+    color: Color32,
+    target: Option<(f64, FontId, Color32)>,
+    muted: Color32,
+) -> LayoutJob {
+    let gap = |f: &FontId| (f.size * 0.2).round();
+    let unit = |f: &FontId| egui::TextFormat::simple(sans(f.size, W::Regular), muted);
+    let mut job = LayoutJob::default();
+    job.append(
+        &fmt_hours(total),
+        0.0,
+        egui::TextFormat::simple(font.clone(), color),
+    );
+    let mut last = font;
+    if let Some((target, font, color)) = target {
+        job.append("/", gap(&font), unit(&font));
+        job.append(
+            &fmt_hours(target),
+            gap(&font),
+            egui::TextFormat::simple(font.clone(), color),
+        );
+        last = font;
+    }
+    job.append("h", gap(&last), unit(&last));
+    job
+}
+
 pub(super) fn pill(
     ui: &mut Ui,
     s: &str,
