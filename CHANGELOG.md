@@ -5,6 +5,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Entries are generated from [Conventional Commits](https://www.conventionalcommits.org/) by [git-cliff](https://git-cliff.org).
 
+## [0.3.0] - 2026-10-10
+
+### Added
+
+- Mark days off and Belgian public holidays
+- Add dark mode with System, Light and Dark appearance
+- **ui:** Style settings dropdowns like text fields
+- **ui:** Draw hour units in muted sans next to mono figures
+- **ui:** Group settings into sections and shorten the data path
+- **ui:** Add the Week clock app icon
+- **ui:** Show the app icon in the top bar
+- **ui:** Pick a line's task type from a compact menu
+- **ui:** Step hours with arrow keys
+- **ui:** Add keyboard shortcuts for daily entry
+- **ui:** Open settings with Cmd+,
+
+### Fixed
+
+- **ui:** Center signed file icon in its row
+- **ui:** Rename Timesheet tab to This month
+- **ui:** Tab through a line in visual order
+- **ui:** Pick a task type with F/B/S while its menu is open
+
+### Changed
+
+- Split model, pdf and ui into module directories
+
+### Documentation
+
+- Add hexagonal architecture notes
+- Add README screenshots rendered from test data
+- Add AGENTS.md with project guidance for agents
+- Link the design system artifact in AGENTS.md
+- Add the keyboard shortcuts screenshot
+- Move keyboard shortcuts below screenshots in README
+
 ## [0.2.0] - 2026-10-09
 
 ### Added
