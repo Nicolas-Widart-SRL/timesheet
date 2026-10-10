@@ -6,10 +6,11 @@ impl App {
     /// Returns true when data changed.
     pub(super) fn timesheet(&mut self, ui: &mut Ui) -> bool {
         let c = colors(ui);
+        let mut dirty = self.timesheet_shortcuts(ui);
         let month = self.month;
         let weeks = month.weeks();
         self.week = self.week.min(weeks.len().saturating_sub(1));
-        let mut dirty = false;
+        let mut focus = self.focus.take();
 
         // Title row.
         ui.horizontal(|ui| {
@@ -45,6 +46,11 @@ impl App {
                         .a11y("Previous month")
                         .min(44.0, 44.0)
                         .show(ui)
+                        .on_hover_text(shortcuts::hint(
+                            ui,
+                            "Previous month",
+                            &shortcuts::PREV_MONTH,
+                        ))
                         .clicked()
                     {
                         self.open_month(month.prev());
@@ -57,6 +63,7 @@ impl App {
                         .a11y("Next month")
                         .min(44.0, 44.0)
                         .show(ui)
+                        .on_hover_text(shortcuts::hint(ui, "Next month", &shortcuts::NEXT_MONTH))
                         .clicked()
                     {
                         self.open_month(month.next());
@@ -96,17 +103,37 @@ impl App {
             ui.set_width(main_w);
             ui.spacing_mut().item_spacing.y = 16.0;
             let mut actions = Vec::new();
+            let mut cards = Vec::new();
             for &date in &weeks[this.week] {
-                dirty |= day_card(ui, &mut this.store.data, date, &mut actions);
+                let card = ui
+                    .scope(|ui| day_card(ui, &mut this.store.data, date, &mut focus, &mut actions));
+                dirty |= card.inner;
+                cards.push((date, card.response.rect));
+            }
+            let focused = ui.ctx().memory(|m| m.focused());
+            let focused = focused.and_then(|id| ui.ctx().read_response(id));
+            this.focused_day = focused.and_then(|r| {
+                let card = cards.iter().find(|(_, rect)| rect.contains_rect(r.rect));
+                card.map(|&(date, _)| date)
+            });
+            // Enter after a full day's last line can lead to a day in another week.
+            if let Some(Focus::Day(date)) = focus {
+                this.jump_to(date);
             }
             dirty |= !actions.is_empty();
             for action in actions {
                 let data = &mut this.store.data;
                 match action {
-                    Action::Add(d) => data.add_line(d),
-                    Action::Copy { from, to } => data.copy_day(from, to),
+                    Action::Add(d) => this.focus = Some(Focus::Desc(data.add_line(d))),
+                    Action::Copy { from, to } => {
+                        data.copy_day(from, to);
+                        this.focus = Some(Focus::Day(to));
+                    }
                     Action::Remove(id) => data.remove_line(id),
-                    Action::SetDayOff(d, off) => data.set_day_off(d, off),
+                    Action::SetDayOff(d, off) => {
+                        data.set_day_off(d, off);
+                        this.focus = Some(Focus::Day(d));
+                    }
                 }
             }
         };
@@ -116,14 +143,82 @@ impl App {
                 ui.vertical(|ui| days_ui(ui, self));
                 ui.vertical(|ui| {
                     ui.set_width(side_w);
-                    self.sidebar(ui, &weeks);
+                    self.sidebar(ui);
                 });
             });
         } else {
             ui.vertical(|ui| days_ui(ui, self));
-            self.sidebar(ui, &weeks);
+            self.sidebar(ui);
         }
         dirty
+    }
+
+    /// Applies the timesheet shortcut pressed this frame, if any. Returns true when data changed.
+    fn timesheet_shortcuts(&mut self, ui: &Ui) -> bool {
+        if self.settings_draft.is_some()
+            || self.shortcuts_open
+            || egui::Popup::is_any_open(ui.ctx())
+        {
+            return false;
+        }
+        let Some(command) = ui.input_mut(shortcuts::read) else {
+            return false;
+        };
+        let weeks = self.month.weeks();
+        self.week = self.week.min(weeks.len() - 1);
+        let week = &weeks[self.week];
+        let data = &mut self.store.data;
+        // The day holding the focused widget, else a default day of the shown week.
+        let current = self
+            .focused_day
+            .filter(|d| week.contains(d))
+            .or_else(|| data.default_day(week, self.today));
+        match command {
+            shortcuts::Command::Day(n) => {
+                if let Some(&d) = week
+                    .iter()
+                    .find(|d| d.weekday().num_days_from_monday() == n)
+                {
+                    self.focus = Some(Focus::Day(d));
+                }
+            }
+            shortcuts::Command::AddLine => {
+                if let Some(d) = current.filter(|&d| data.can_add_line(d)) {
+                    self.focus = Some(Focus::Desc(data.add_line(d)));
+                    return true;
+                }
+            }
+            shortcuts::Command::CopyDay => {
+                if let Some((from, to)) = current.and_then(|d| Some((data.copy_source(d)?, d))) {
+                    data.copy_day(from, to);
+                    self.focus = Some(Focus::Day(to));
+                    return true;
+                }
+            }
+            shortcuts::Command::Today => {
+                self.open_month(Month::of(self.today));
+                let week = &self.month.weeks()[self.week];
+                self.focus = self.data().default_day(week, self.today).map(Focus::Day);
+            }
+            shortcuts::Command::PrevWeek if self.week > 0 => self.week -= 1,
+            shortcuts::Command::PrevWeek => {
+                self.open_month(self.month.prev());
+                self.week = self.month.weeks().len() - 1;
+            }
+            shortcuts::Command::NextWeek if self.week + 1 < weeks.len() => self.week += 1,
+            shortcuts::Command::NextWeek => {
+                self.open_month(self.month.next());
+                self.week = 0;
+            }
+            shortcuts::Command::PrevMonth => self.open_month(self.month.prev()),
+            shortcuts::Command::NextMonth => self.open_month(self.month.next()),
+            shortcuts::Command::NextOpenDay => {
+                if let Some(&d) = data.open_days(&self.month.weekdays()).first() {
+                    self.jump_to(d);
+                }
+            }
+        }
+        false
     }
 
     fn week_chips(&mut self, ui: &mut Ui, weeks: &[Vec<NaiveDate>]) {
@@ -152,7 +247,7 @@ impl App {
         ui.add_space(-10.0);
     }
 
-    fn sidebar(&mut self, ui: &mut Ui, weeks: &[Vec<NaiveDate>]) {
+    fn sidebar(&mut self, ui: &mut Ui) {
         let c = colors(ui);
         let month = self.month;
         let data = self.data();
@@ -226,11 +321,9 @@ impl App {
                         .font(sans(15.0, W::SemiBold))
                         .min(0.0, 40.0);
                     b.pad = 12.0;
-                    if b.show(ui).clicked() {
-                        self.week = weeks
-                            .iter()
-                            .position(|w| w.contains(&first_open))
-                            .unwrap_or(0);
+                    let tip = shortcuts::hint(ui, "Next open day", &shortcuts::NEXT_OPEN_DAY);
+                    if b.show(ui).on_hover_text(tip).clicked() {
+                        self.jump_to(first_open);
                     }
                 }
             });
@@ -377,12 +470,27 @@ fn week_chip(
     response.on_hover_cursor(CursorIcon::PointingHand)
 }
 
+/// Focuses `response` when it is the pending `target`.
+fn take_focus(response: &Response, pending: &mut Option<Focus>, target: Focus) {
+    if *pending == Some(target) {
+        response.request_focus();
+        response.scroll_to_me(None);
+        *pending = None;
+    }
+}
+
 /// One weekday card with its lines. Edits apply directly; structural changes are queued in `actions`.
-/// Returns true when a line was edited.
-fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Action>) -> bool {
+/// Takes the pending `focus` when it targets a widget of this card. Returns true when a line was edited.
+fn day_card(
+    ui: &mut Ui,
+    data: &mut Data,
+    date: NaiveDate,
+    focus: &mut Option<Focus>,
+    actions: &mut Vec<Action>,
+) -> bool {
     let c = colors(ui);
     if let Some(label) = data.day_off_label(date) {
-        day_off_card(ui, date, &label, actions);
+        day_off_card(ui, date, &label, focus, actions);
         return false;
     }
     let total = data.day_total(date);
@@ -393,7 +501,10 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
         data.next_kind(date).label(),
         fmt_hours(left.max(0.0))
     );
-    let prev = data.previous_filled_day(date);
+    let prev = data.copy_source(date);
+    // Where Enter in the last line's hours goes: a new line, else the next open day.
+    let can_add = data.can_add_line(date);
+    let next_day = data.next_open_day(date, &Month::of(date).weekdays());
     let indexes: Vec<usize> = data
         .entries
         .iter()
@@ -460,10 +571,15 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                     ui.horizontal(|ui| {
                         text(ui, "No time recorded yet.", sans(15.0, W::Regular), c.muted);
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if Btn::primary(c, &format!("Add line · {next_hint}"))
+                            let add = Btn::primary(c, &format!("Add line · {next_hint}"))
                                 .show(ui)
-                                .clicked()
-                            {
+                                .on_hover_text(shortcuts::hint(
+                                    ui,
+                                    "Add line",
+                                    &shortcuts::ADD_LINE,
+                                ));
+                            take_focus(&add, focus, Focus::Day(date));
+                            if add.clicked() {
                                 actions.push(Action::Add(date));
                             }
                             if let Some(from) = prev {
@@ -477,7 +593,16 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                         from.day()
                                     )
                                 };
-                                if Btn::outline(c, &format!("Copy {name}")).show(ui).clicked() {
+                                let label = format!("Copy {name}");
+                                if Btn::outline(c, &label)
+                                    .show(ui)
+                                    .on_hover_text(shortcuts::hint(
+                                        ui,
+                                        &label,
+                                        &shortcuts::COPY_DAY,
+                                    ))
+                                    .clicked()
+                                {
                                     actions.push(Action::Copy { from, to: date });
                                 }
                             }
@@ -502,6 +627,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                 hline(ui, c.divider);
             }
             let line_no = k + 1;
+            let next_line = indexes.get(k + 1).map(|&n| data.entries[n].id);
             let entry = &mut data.entries[i];
             Frame::new()
                 .inner_margin(Margin {
@@ -533,7 +659,7 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                             );
                             let desc = ui.add(
                                 TextEdit::singleline(&mut entry.desc)
-                                    .id_salt(("desc", entry.id))
+                                    .id(ui.make_persistent_id(("desc", entry.id)))
                                     .hint_text("What did you do? e.g. ticket #1234")
                                     .font(sans(15.0, W::Regular))
                                     .text_color(c.ink)
@@ -550,6 +676,13 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                 )
                             });
                             dirty |= desc.changed();
+                            take_focus(&desc, focus, Focus::Desc(entry.id));
+                            if k == 0 {
+                                take_focus(&desc, focus, Focus::Day(date));
+                            }
+                            if desc.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                                *focus = Some(Focus::Hours(entry.id));
+                            }
                             let slot_ui = UiBuilder::new()
                                 .max_rect(slot)
                                 .layout(Layout::left_to_right(Align::Center));
@@ -605,6 +738,15 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                         )
                                     });
                                     dirty |= hours.changed();
+                                    take_focus(&hours, focus, Focus::Hours(entry.id));
+                                    if hours.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))
+                                    {
+                                        match next_line {
+                                            Some(id) => *focus = Some(Focus::Desc(id)),
+                                            None if can_add => actions.push(Action::Add(date)),
+                                            None => *focus = next_day.map(Focus::Day),
+                                        }
+                                    }
                                 });
                                 ui.spacing_mut().item_spacing.x = 12.0;
                                 text(ui, "h", sans(15.0, W::Regular), c.muted);
@@ -645,7 +787,8 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                         b.dashed = true;
                         b.pad = 14.0;
                         b.hover_fill = c.accent_tint;
-                        if b.show(ui).clicked() {
+                        let tip = shortcuts::hint(ui, "Add line", &shortcuts::ADD_LINE);
+                        if b.show(ui).on_hover_text(tip).clicked() {
                             actions.push(Action::Add(date));
                         }
                     }
@@ -679,7 +822,13 @@ fn day_heading(ui: &mut Ui, date: NaiveDate) {
 }
 
 /// Weekday marked as a day off: no lines, 0 h toward the target.
-fn day_off_card(ui: &mut Ui, date: NaiveDate, label: &str, actions: &mut Vec<Action>) {
+fn day_off_card(
+    ui: &mut Ui,
+    date: NaiveDate,
+    label: &str,
+    focus: &mut Option<Focus>,
+    actions: &mut Vec<Action>,
+) {
     let c = colors(ui);
     card(ui, c.border, Margin::symmetric(20, 14), |ui| {
         ui.horizontal(|ui| {
@@ -695,11 +844,11 @@ fn day_off_card(ui: &mut Ui, date: NaiveDate, label: &str, actions: &mut Vec<Act
                 99,
             );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if Btn::outline(c, "Mark as workday")
+                let workday = Btn::outline(c, "Mark as workday")
                     .a11y(format!("Mark {} as a workday", weekday_long(date)))
-                    .show(ui)
-                    .clicked()
-                {
+                    .show(ui);
+                take_focus(&workday, focus, Focus::Day(date));
+                if workday.clicked() {
                     actions.push(Action::SetDayOff(date, None));
                 }
                 text(

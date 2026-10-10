@@ -23,6 +23,7 @@ mod past_months;
 #[cfg(test)]
 mod screenshots;
 mod settings;
+mod shortcuts;
 mod theme;
 mod timesheet;
 mod widgets;
@@ -61,6 +62,15 @@ enum Action {
     SetDayOff(NaiveDate, Option<DayOff>),
 }
 
+/// Widget to focus when it is next drawn, set by keyboard shortcuts and line actions.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Focus {
+    /// The description of the day's first line, else "Add line", else "Mark as workday".
+    Day(NaiveDate),
+    Desc(u64),
+    Hours(u64),
+}
+
 /// Past-months actions that need dialogs or file access, run after drawing the card.
 enum MonthAction {
     Export(Report),
@@ -82,6 +92,10 @@ pub struct App {
     export_note: Option<(Month, Result<String, String>)>,
     /// Outcome of the last data export or import, shown in Settings.
     backup_note: Option<Result<String, String>>,
+    focus: Option<Focus>,
+    /// Day card holding the focused widget at the end of the last frame.
+    focused_day: Option<NaiveDate>,
+    shortcuts_open: bool,
 }
 
 fn data_path() -> PathBuf {
@@ -114,6 +128,9 @@ impl App {
             banner,
             export_note: None,
             backup_note: None,
+            focus: None,
+            focused_day: None,
+            shortcuts_open: false,
         };
         app.open_month(Month::of(today));
         app
@@ -142,6 +159,17 @@ impl App {
             .position(|w| w.last().is_some_and(|&d| d >= self.today))
             .filter(|_| month == Month::of(self.today))
             .unwrap_or(0);
+    }
+
+    /// Shows the week holding `date`, switching month if needed, and focuses the day.
+    fn jump_to(&mut self, date: NaiveDate) {
+        if Month::of(date) != self.month {
+            self.open_month(Month::of(date));
+        }
+        if let Some(week) = self.month.weeks().iter().position(|w| w.contains(&date)) {
+            self.week = week;
+        }
+        self.focus = Some(Focus::Day(date));
     }
 
     fn export(&mut self, month: Month, report: Report) {
@@ -257,6 +285,11 @@ impl eframe::App for App {
             ui.ctx().set_theme(theme);
             ui.ctx().request_repaint();
         }
+        if self.settings_draft.is_none()
+            && ui.input_mut(|i| i.consume_shortcut(&shortcuts::SHOW_LIST))
+        {
+            self.shortcuts_open = !self.shortcuts_open;
+        }
         let c = colors(ui);
         egui::Panel::top("top")
             .exact_size(64.0)
@@ -286,6 +319,10 @@ impl eframe::App for App {
             });
 
         dirty |= self.settings_modal(ui.ctx());
+        self.shortcuts_modal(ui.ctx());
+        if self.focus.is_some() {
+            ui.ctx().request_repaint();
+        }
         if dirty {
             self.save();
         }

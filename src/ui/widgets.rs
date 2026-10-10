@@ -604,6 +604,18 @@ pub(super) fn kind_menu(
     let (_, rect) = ui.allocate_space(vec2(132.0, 44.0));
     let response = ui.interact(rect, ui.id().with(id_salt), Sense::click());
     let open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&response));
+    let mut changed = false;
+    if response.has_focus() && !open {
+        let typed = ui.input_mut(|i| {
+            Kind::ALL
+                .into_iter()
+                .find(|&k| i.consume_key(Modifiers::NONE, super::shortcuts::kind_key(k)))
+        });
+        if let Some(kind) = typed.filter(|k| k != value) {
+            *value = kind;
+            changed = true;
+        }
+    }
     response.widget_info(|| {
         WidgetInfo::labeled(
             WidgetType::ComboBox,
@@ -635,7 +647,6 @@ pub(super) fn kind_menu(
             2.0,
         );
     }
-    let mut changed = false;
     egui::Popup::menu(&response).width(180.0).show(|ui| {
         ui.spacing_mut().item_spacing.y = 2.0;
         for kind in Kind::ALL {
@@ -665,7 +676,9 @@ pub(super) fn kind_menu(
             }
         }
     });
-    response.on_hover_cursor(CursorIcon::PointingHand);
+    response
+        .on_hover_cursor(CursorIcon::PointingHand)
+        .on_hover_text("Task type (F / B / S)");
     changed
 }
 

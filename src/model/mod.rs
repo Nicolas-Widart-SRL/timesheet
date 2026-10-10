@@ -289,6 +289,31 @@ impl Data {
             .collect()
     }
 
+    /// First open day of `days` after `date`: where Enter goes after a full day's last line.
+    pub fn next_open_day(&self, date: NaiveDate, days: &[NaiveDate]) -> Option<NaiveDate> {
+        self.open_days(days).into_iter().find(|&d| d > date)
+    }
+
+    /// Day that keyboard shortcuts act on when no day has focus: today when it is in `week`,
+    /// else the first open day of `week`.
+    pub fn default_day(&self, week: &[NaiveDate], today: NaiveDate) -> Option<NaiveDate> {
+        if week.contains(&today) {
+            return Some(today);
+        }
+        self.open_days(week).first().copied()
+    }
+
+    /// A line can be added to a workday still under [`MAX_DAY_HOURS`].
+    pub fn can_add_line(&self, date: NaiveDate) -> bool {
+        self.day_off(date).is_none() && self.day_total(date) < MAX_DAY_HOURS
+    }
+
+    /// Day to copy into `date`: the previous filled day, when `date` is an empty workday.
+    pub fn copy_source(&self, date: NaiveDate) -> Option<NaiveDate> {
+        let empty = self.lines(date).next().is_none() && self.day_off(date).is_none();
+        empty.then(|| self.previous_filled_day(date)).flatten()
+    }
+
     /// Hours expected over `days`: [`MAX_DAY_HOURS`] per workday.
     pub fn target_hours(&self, days: &[NaiveDate]) -> f64 {
         self.workdays(days).len() as f64 * MAX_DAY_HOURS
@@ -339,11 +364,12 @@ impl Data {
         id
     }
 
-    /// Adds a line pre-filled with the proposed type and the hours left in the day.
-    pub fn add_line(&mut self, date: NaiveDate) {
+    /// Adds a line pre-filled with the proposed type and the hours left in the day. Returns its id.
+    pub fn add_line(&mut self, date: NaiveDate) -> u64 {
         let left = (MAX_DAY_HOURS - self.day_total(date)).max(0.0);
+        let id = self.take_id();
         let entry = Entry {
-            id: self.take_id(),
+            id,
             date,
             kind: self.next_kind(date),
             desc: String::new(),
@@ -354,6 +380,7 @@ impl Data {
             },
         };
         self.entries.push(entry);
+        id
     }
 
     pub fn copy_day(&mut self, from: NaiveDate, to: NaiveDate) {
@@ -583,6 +610,42 @@ mod tests {
         data.add_line(nov11);
         data.settings.country = Some(Country::Belgium);
         assert_eq!(data.day_off(nov11), None);
+    }
+
+    #[test]
+    fn days_for_keyboard_shortcuts() {
+        // Oct 2026, week 3: Mon 12 full, Tue 13 off, Wed 14 empty, Thu 15 partly filled, Fri 16 empty.
+        let mut data = Data {
+            entries: vec![
+                entry(0, 9, Kind::Backend, "8"),
+                entry(1, 12, Kind::Backend, "8"),
+                entry(2, 15, Kind::Support, "3"),
+            ],
+            next_id: 3,
+            ..Default::default()
+        };
+        data.set_day_off(d(13), Some(DayOff::Leave));
+        let week = &Month::of(d(1)).weeks()[2];
+
+        assert_eq!(data.next_open_day(d(12), week), Some(d(14)));
+        assert_eq!(data.next_open_day(d(16), week), None);
+
+        assert_eq!(data.default_day(week, d(15)), Some(d(15)));
+        assert_eq!(data.default_day(week, d(1)), Some(d(14)));
+        assert_eq!(data.default_day(week, d(17)), Some(d(14)), "Saturday");
+
+        assert!(!data.can_add_line(d(12)), "full");
+        assert!(!data.can_add_line(d(13)), "day off");
+        assert!(data.can_add_line(d(14)));
+        assert!(data.can_add_line(d(15)));
+
+        assert_eq!(data.copy_source(d(14)), Some(d(12)));
+        assert_eq!(data.copy_source(d(13)), None, "day off");
+        assert_eq!(data.copy_source(d(15)), None, "has lines");
+        assert_eq!(data.copy_source(d(8)), None, "nothing before");
+
+        let id = data.add_line(d(14));
+        assert_eq!(data.entries.last().map(|e| e.id), Some(id));
     }
 
     #[test]
