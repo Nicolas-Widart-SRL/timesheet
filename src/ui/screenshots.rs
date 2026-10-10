@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use chrono::NaiveDate;
+use eframe::egui::Key;
 use eframe::egui::accesskit::Role;
 use egui_kittest::{Harness, kittest::Queryable as _};
 
@@ -75,4 +76,41 @@ fn task_type_menu_changes_the_line() {
         h.query_by_role_and_label(Role::RadioButton, "Support")
             .is_none()
     );
+}
+
+#[test]
+fn arrow_keys_step_hours_between_0_and_8() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut h = harness(dir.path());
+    h.run();
+    h.get_by_role_and_label(Role::TextInput, "Hours, Monday line 1")
+        .focus();
+    h.run();
+
+    let monday = NaiveDate::from_ymd_opt(2026, 10, 12).unwrap();
+    let hours = |h: &Harness<'_, App>| {
+        let entry = h
+            .state()
+            .store
+            .data
+            .entries
+            .iter()
+            .find(|e| e.date == monday);
+        entry.unwrap().hours.clone()
+    };
+    assert_eq!(hours(&h), "8");
+    h.key_press(Key::ArrowUp);
+    h.run();
+    assert_eq!(hours(&h), "8");
+    h.key_press(Key::ArrowDown);
+    h.run();
+    assert_eq!(hours(&h), "7");
+    for _ in 0..8 {
+        h.key_press(Key::ArrowDown);
+        h.run();
+    }
+    assert_eq!(hours(&h), "0");
+    h.key_press(Key::ArrowUp);
+    h.run();
+    assert_eq!(hours(&h), "1");
 }

@@ -536,9 +536,27 @@ fn day_card(ui: &mut Ui, data: &mut Data, date: NaiveDate, actions: &mut Vec<Act
                                     widgets.inactive.bg_stroke = Stroke::new(1.0, c.danger);
                                     widgets.hovered.bg_stroke = Stroke::new(1.0, c.danger);
                                 }
+                                // Arrow up/down step the focused field by one hour.
+                                let id = ui.make_persistent_id(("hours", entry.id));
+                                if ui.memory(|m| m.has_focus(id)) {
+                                    let delta = ui.input_mut(|i| {
+                                        if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
+                                            1.0
+                                        } else if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
+                                            -1.0
+                                        } else {
+                                            0.0
+                                        }
+                                    });
+                                    if delta != 0.0 {
+                                        let stepped = step_hours(&entry.hours, delta);
+                                        dirty |= stepped != entry.hours;
+                                        entry.hours = stepped;
+                                    }
+                                }
                                 let hours = ui.add(
                                     TextEdit::singleline(&mut entry.hours)
-                                        .id_salt(("hours", entry.id))
+                                        .id(id)
                                         .font(mono(15.0, false))
                                         .text_color(c.ink)
                                         .horizontal_align(Align::RIGHT)

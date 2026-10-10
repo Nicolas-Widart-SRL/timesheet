@@ -394,6 +394,11 @@ pub fn parse_hours(text: &str) -> f64 {
     }
 }
 
+/// Adds `delta` hours to typed hours, kept within 0..=[`MAX_DAY_HOURS`]: "7.5" + 1 gives "8".
+pub fn step_hours(text: &str, delta: f64) -> String {
+    fmt_hours((parse_hours(text) + delta).clamp(0.0, MAX_DAY_HOURS))
+}
+
 /// Rounds to hundredths of an hour, so sums of typed decimals compare exactly (0.1 + 4.1 + 3.8 == 8.0).
 fn round_hours(n: f64) -> f64 {
     // `+ 0.0` turns -0.0 (the sum of an empty iterator) into 0.0.
@@ -444,6 +449,12 @@ mod tests {
         assert_eq!(fmt_hours(std::iter::empty::<f64>().sum()), "0");
         assert_eq!(fmt_report(-0.0), "0.0");
         assert_eq!(fmt_hours(1.5), "1.5");
+        assert_eq!(step_hours("3", 1.0), "4");
+        assert_eq!(step_hours("7,5", 1.0), "8");
+        assert_eq!(step_hours("8", 1.0), "8");
+        assert_eq!(step_hours("0.5", -1.0), "0");
+        assert_eq!(step_hours("", -1.0), "0");
+        assert_eq!(step_hours("abc", 1.0), "1");
         assert_eq!(fmt_report(8.0), "8.0");
         assert_eq!(fmt_report(176.0), "176.0");
         assert_eq!(fmt_report(0.25), "0.25");
