@@ -24,7 +24,7 @@ pub(super) struct Palette {
     pub(super) accent_strong: Color32,
     pub(super) accent_soft: Color32,
     pub(super) accent_tint: Color32,
-    /// Text and icons on `accent`, `ok` and task-type fills.
+    /// Text and icons on `accent` and `ok` fills.
     pub(super) on_accent: Color32,
     pub(super) selection: Color32,
     pub(super) danger: Color32,
@@ -40,8 +40,6 @@ pub(super) struct Palette {
     pub(super) disabled: Color32,
     /// Swatches and bars, in [`Kind::ALL`] order.
     pub(super) kinds: [Color32; 3],
-    /// Fills of selected task-type toggles, in [`Kind::ALL`] order.
-    pub(super) kind_toggles: [Color32; 3],
 }
 
 pub(super) const fn pdf_kind(kind: Kind) -> Color32 {
@@ -88,12 +86,6 @@ pub(super) const LIGHT: Palette = Palette {
         pdf_kind(Kind::Backend),
         pdf_kind(Kind::Support),
     ],
-    // Backend is darkened for white text.
-    kind_toggles: [
-        pdf_kind(Kind::Frontend),
-        hex(0xA44A0C),
-        pdf_kind(Kind::Support),
-    ],
 };
 
 /// Same hues as [`LIGHT`], lightened to read on dark surfaces; fills carry dark text.
@@ -127,7 +119,6 @@ pub(super) const DARK: Palette = Palette {
     warn_border: hex(0x8C5B30),
     disabled: hex(0x6B7180),
     kinds: [hex(0x8AA4FF), hex(0xF0955E), hex(0x45C7B2)],
-    kind_toggles: [hex(0x8AA4FF), hex(0xF0955E), hex(0x45C7B2)],
 };
 
 impl Palette {
@@ -137,10 +128,6 @@ impl Palette {
 
     pub(super) fn kind(&self, kind: Kind) -> Color32 {
         self.kinds[kind as usize]
-    }
-
-    pub(super) fn kind_toggle(&self, kind: Kind) -> Color32 {
-        self.kind_toggles[kind as usize]
     }
 }
 
@@ -343,9 +330,6 @@ mod tests {
                 ] {
                     pairs.push((fg_name, fg, bg_name, bg));
                 }
-            }
-            for kind in Kind::ALL {
-                pairs.push(("on_accent", c.on_accent, kind.label(), c.kind_toggle(kind)));
             }
             for (fg_name, fg, bg_name, bg) in pairs {
                 let ratio = contrast(fg, bg);
