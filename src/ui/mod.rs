@@ -6,15 +6,16 @@ use std::sync::Arc;
 use chrono::{Datelike, NaiveDate};
 use eframe::egui::{
     self, Align, Align2, Color32, CornerRadius, CursorIcon, FontData, FontDefinitions, FontFamily,
-    FontId, Frame, Id, Layout, Margin, Painter, Pos2, Rect, Response, Sense, Shape, Stroke,
-    StrokeKind, TextEdit, Ui, UiBuilder, Vec2, WidgetInfo, WidgetType, pos2, text::LayoutJob, vec2,
+    FontId, Frame, Id, Key, Layout, Margin, Modifiers, Painter, Pos2, Rect, Response, Sense, Shape,
+    Stroke, StrokeKind, TextEdit, Ui, UiBuilder, Vec2, WidgetInfo, WidgetType, pos2,
+    text::LayoutJob, vec2,
 };
 
 use crate::fonts;
 use crate::holidays::Country;
 use crate::model::{
     Appearance, Approval, ApprovalStatus, Data, DayOff, Kind, MAX_DAY_HOURS, Month, Settings,
-    Store, day_range, fmt_hours, weekday_long, weekday_short,
+    Store, day_range, fmt_hours, step_hours, weekday_long, weekday_short,
 };
 use crate::pdf;
 
