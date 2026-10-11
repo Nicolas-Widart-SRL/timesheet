@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Entries are generated from [Conventional Commits](https://www.conventionalcommits.org/) by [git-cliff](https://git-cliff.org).
 
+## [0.4.0] - 2026-10-11
+
+### Added
+
+- **timesheet:** Autocomplete Azure DevOps tickets in descriptions
+
 ## [0.3.0] - 2026-10-10
 
 ### Added
